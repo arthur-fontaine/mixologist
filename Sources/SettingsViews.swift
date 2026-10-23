@@ -240,7 +240,7 @@ private struct MenuBarItemsPane: View {
                 if model.apps.isEmpty {
                     Text(
                         model.accessibilityTrusted
-                            ? "No third-party menu bar items found. Open an app that adds one, then rescan."
+                            ? "No third-party menu bar items found. Open an app that adds one, then rescan. If apps you expect are missing, relaunch Mixologist."
                             : "Apps appear here once Accessibility access is granted."
                     )
                     .foregroundStyle(.secondary)
