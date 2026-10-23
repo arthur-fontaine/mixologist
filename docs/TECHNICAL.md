@@ -1,7 +1,13 @@
 # Mixologist architecture
 
-Mixologist is a small AppKit application. It has no third-party dependencies,
-no network code, and no Screen Recording usage.
+Mixologist is a small AppKit application with a SwiftUI settings window. It has
+no third-party dependencies, no network code, and no Screen Recording usage.
+
+The core is Objective-C; the settings window is Swift. The Makefile compiles the
+Swift sources into one object (emitting `Mixologist-Swift.h` for the
+Objective-C side, with `Sources/Mixologist-Bridging-Header.h` going the other
+way), compiles each `.m` file, and links through `swiftc` so the Swift runtime
+comes along. No Xcode project is involved.
 
 ## Source layout
 
@@ -14,8 +20,11 @@ no network code, and no Screen Recording usage.
 | `Sources/MXVisibilityController.{h,m}` | Scan scheduling, reveal lease, assertion lifecycle, workspace observers |
 | `Sources/MXPrivateAPI.{h,m}` | Defensive `dlopen` wrapper around `MenuBarClientCore` |
 | `Sources/MXSettingsStore.{h,m}` | `NSUserDefaults` persistence |
-| `Sources/MXSettingsWindowController.{h,m}` | Programmatic AppKit settings window |
+| `Sources/MXPermissions.{h,m}` | Live Accessibility trust tracking, TCC reset, relaunch |
 | `Sources/MXHotKey.{h,m}` | Carbon system-wide hotkey |
+| `Sources/SettingsWindowController.swift` | Settings window chrome, exposed to Objective-C as `MXSettingsWindowController` |
+| `Sources/SettingsModel.swift` | Observable bridge from the controller's notifications to SwiftUI |
+| `Sources/SettingsViews.swift`, `SettingsComponents.swift` | Sidebar, panes, and shared row styles |
 
 ## Visibility model
 
@@ -67,7 +76,8 @@ be re-applied when the reveal ends.
 1. `MXVisibilityController.start` installs `NSWorkspace` launch/terminate/hide/
    unhide/screen-wake observers and a 20-second safety poll.
 2. `refreshScanWithCompletion:` runs `MXMenuBarScanner` on a serial background
-   queue, coalescing concurrent requests.
+   queue. A request that arrives mid-scan queues one more scan rather than
+   reusing the in-flight result, and every caller's completion runs.
 3. The scanner walks `AXExtrasMenuBar` recursively, up to six levels, collecting
    `AXMenuBarItem` elements with `AXMenuExtra` subroles. Control Center modules
    are nested inside `AXGroup`/`AXHostingView`, hence the recursion. The main
@@ -77,6 +87,8 @@ be re-applied when the reveal ends.
    caller forces a re-apply).
 5. A hidden app that launches is already excluded from the allow list, so it is
    hidden immediately. A visible app that launches is added by the next scan.
+6. When `com.apple.MenuBarAgent` relaunches, the restriction it held is gone
+   although the plan is unchanged, so the next scan force re-applies it.
 
 ## Assertion lifecycle
 
@@ -109,12 +121,32 @@ property of the private API, not of the scanner. The same reason explains why an
 ad-hoc-signed build's own status item may disappear while hiding is active, which
 is why the hotkey and settings window are independent control paths.
 
+## Accessibility
+
+`MXPermissions` reads `AXIsProcessTrusted()` and keeps it current without a
+relaunch: it observes the `com.apple.accessibility.api` distributed
+notification, polls once a second while access is missing, and re-checks when
+the app becomes active. A change posts `MXAccessibilityTrustDidChangeNotification`,
+which triggers a rescan and brings the settings window back to the front.
+
+TCC identifies an ad-hoc-signed app by its cdhash, so a rebuild makes an earlier
+grant stale while System Settings still shows it enabled. The Makefile signs
+with an `Apple Development` identity when one exists to avoid this. For the
+remaining cases, settings offer **Reset Permission** (`tccutil reset
+Accessibility dev.mixologist.Mixologist`, followed by a fresh prompt) and
+**Relaunch**, which waits for the current process to exit before reopening the
+bundle.
+
+Only one instance runs at a time: a second launch asks the first to show its
+settings and quits, since two restrictions would intersect their allow lists.
+
 ## UI
 
-`MXSettingsWindowController` builds the window programmatically to avoid nibs
-and asset catalogs. Each row is an `NSStackView` with a checkbox, app name,
-bundle identifier, item count, and item titles. Toggling a checkbox immediately
-updates the stored hidden set and re-applies the plan.
+The settings window is SwiftUI hosted in an `NSWindow`: a fixed-width sidebar
+(General, Menu Bar Items, About) next to grouped `Form` panes. Toggling an app's
+switch immediately updates the stored hidden set and re-applies the plan. Hidden
+apps stay listed even when the scan no longer sees them, so they can always be
+turned back on individually.
 
 The status item is a convenience, not the only control path. The global hotkey
 `⌃⌥⌘M` and the settings window remain usable even if Mixologist's own status item

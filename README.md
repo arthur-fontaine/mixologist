@@ -36,7 +36,8 @@ core behaviour in a small, auditable codebase:
 
 - macOS 26 or later (developed and tested on macOS 27.0, build `26A428`).
 - Accessibility permission, used to discover and name menu bar items.
-- Xcode command-line tools (`clang`) to build. No Xcode project is required.
+- Xcode (for `clang`, `swiftc` and the macOS 26+ SDK) to build. No Xcode project
+  is required.
 
 ## Build and run
 
@@ -79,13 +80,12 @@ feature.
 
 1. Launch Mixologist.
 2. Grant Accessibility when prompted (System Settings → Privacy & Security →
-   Accessibility).
-3. Press **Rescan**.
-4. Untick an application to hide its menu bar items. Ticked applications stay
-   visible.
-5. Use **Reveal Hidden (15 s)** or `⌃⌥⌘M` to show everything temporarily.
-6. **Unhide All Apps** permanently restores everything.
-7. Quit Mixologist to release the restriction.
+   Accessibility). Mixologist notices the change by itself; if it doesn't,
+   use **Reset Permission** or **Relaunch** in Settings → General.
+3. In Settings → Menu Bar Items, turn an app off to hide its menu bar items.
+4. Use **Reveal for 15 s** or `⌃⌥⌘M` to show everything temporarily.
+5. **Show All** permanently restores everything.
+6. Quit Mixologist to release the restriction.
 
 Apple's system items (Clock, Wi-Fi, Battery, Control Center, Display, …) are kept
 visible by passing every `MBSystemItemIdentifier` raw value (`0...8`) to the

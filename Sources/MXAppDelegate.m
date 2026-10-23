@@ -3,7 +3,7 @@
 #import "MXHotKey.h"
 #import "MXMenuBarScanner.h"
 #import "MXPermissions.h"
-#import "MXSettingsWindowController.h"
+#import "Mixologist-Swift.h"
 #import "MXVisibilityController.h"
 
 @interface MXAppDelegate ()
@@ -50,6 +50,7 @@ static NSString *const kMXShowSettingsNotification = @"dev.mixologist.Mixologist
                                                         object:nil
                                             suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately];
     [MXPermissions.shared startWatching];
+    [self installMainMenu];
 
     self.visibilityController = [[MXVisibilityController alloc] init];
     self.settingsWindowController = [[MXSettingsWindowController alloc] initWithController:self.visibilityController];
@@ -82,12 +83,40 @@ static NSString *const kMXShowSettingsNotification = @"dev.mixologist.Mixologist
         [self updateMenuState];
         if (!MXPermissions.shared.isAccessibilityTrusted && !self.didShowSettings) {
             self.didShowSettings = YES;
+            [self.settingsWindowController showPermissions];
             [self showSettings:nil];
         } else if (!self.visibilityController.store.hasShownWelcome) {
             self.visibilityController.store.hasShownWelcome = YES;
             [self showSettings:nil];
         }
     }];
+}
+
+/// Accessory apps get no main menu by default, which leaves ⌘W, ⌘Q and the
+/// text-editing shortcuts dead whenever the settings window is key.
+- (void)installMainMenu {
+    NSMenu *mainMenu = [[NSMenu alloc] init];
+
+    NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"Mixologist"];
+    [appMenu addItemWithTitle:@"Settings…" action:@selector(showSettings:) keyEquivalent:@","].target = self;
+    [appMenu addItem:[NSMenuItem separatorItem]];
+    [appMenu addItemWithTitle:@"Quit Mixologist" action:@selector(terminate:) keyEquivalent:@"q"];
+    [mainMenu addItemWithTitle:@"Mixologist" action:nil keyEquivalent:@""].submenu = appMenu;
+
+    NSMenu *editMenu = [[NSMenu alloc] initWithTitle:@"Edit"];
+    [editMenu addItemWithTitle:@"Cut" action:@selector(cut:) keyEquivalent:@"x"];
+    [editMenu addItemWithTitle:@"Copy" action:@selector(copy:) keyEquivalent:@"c"];
+    [editMenu addItemWithTitle:@"Paste" action:@selector(paste:) keyEquivalent:@"v"];
+    [editMenu addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
+    [mainMenu addItemWithTitle:@"Edit" action:nil keyEquivalent:@""].submenu = editMenu;
+
+    NSMenu *windowMenu = [[NSMenu alloc] initWithTitle:@"Window"];
+    [windowMenu addItemWithTitle:@"Close" action:@selector(performClose:) keyEquivalent:@"w"];
+    [windowMenu addItemWithTitle:@"Minimize" action:@selector(performMiniaturize:) keyEquivalent:@"m"];
+    [mainMenu addItemWithTitle:@"Window" action:nil keyEquivalent:@""].submenu = windowMenu;
+    NSApp.windowsMenu = windowMenu;
+
+    NSApp.mainMenu = mainMenu;
 }
 
 - (void)installStatusItem {

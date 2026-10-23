@@ -319,7 +319,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
         return @"All menu bar items are visible (temporary reveal).";
     }
     if (!hiddenCount) {
-        return @"Nothing is hidden. Untick apps below to hide their menu bar items.";
+        return @"Nothing is hidden. Turn apps off in Menu Bar Items to hide them.";
     }
     if (self.hidingActive) {
         return [NSString stringWithFormat:@"Hiding %lu app%@. %lu apps / %lu items discovered.",
