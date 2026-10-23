@@ -10,7 +10,12 @@ BINARY := $(MACOS_DIR)/$(APP_NAME)
 
 SDKROOT ?= $(shell xcrun --sdk macosx --show-sdk-path)
 ARCHS ?= $(shell uname -m)
-CODESIGN_IDENTITY ?= -
+# TCC keys an ad-hoc build's Accessibility grant to its cdhash, so every rebuild
+# silently loses it. A real identity gives a designated requirement that stays
+# stable across rebuilds; fall back to ad-hoc only when none is installed.
+ifeq ($(origin CODESIGN_IDENTITY),undefined)
+CODESIGN_IDENTITY := $(or $(shell security find-identity -p codesigning -v 2>/dev/null | grep -o '"Apple Development: [^"]*"' | head -1 | tr -d '"'),-)
+endif
 
 SOURCES := $(wildcard Sources/*.m)
 HEADERS := $(wildcard Sources/*.h)
@@ -48,6 +53,7 @@ sign:
 	@echo "Signed $(APP) with $(CODESIGN_IDENTITY)"
 
 run: $(APP)
+	@pkill -x $(APP_NAME) 2>/dev/null; while pgrep -x $(APP_NAME) >/dev/null; do sleep 0.1; done
 	open "$(APP)"
 
 diagnose: $(APP)

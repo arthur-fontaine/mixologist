@@ -55,18 +55,22 @@ make install    # copies to /Applications/Mixologist.app
 
 ### Code signing
 
-The default build is ad-hoc signed. If you launch the executable directly from a
-terminal instead of through Finder/LaunchServices, macOS may not attribute its
-status item to a bundle identifier, so the private API cannot keep that item in
-the allow list. Mixologist therefore always provides two independent escape
-hatches: the `⌃⌥⌘M` global shortcut and the settings window (reopen the app from
-Finder/Spotlight to show it).
-
-For the best experience, sign with a development identity:
+`make` signs with the first `Apple Development` identity in your keychain and
+falls back to ad-hoc signing when there is none. Override it with:
 
 ```sh
 CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" make
 ```
+
+A real identity matters for Accessibility: macOS ties an ad-hoc build's grant to
+that exact binary, so every rebuild loses it while System Settings still shows
+the switch as on. If that happens, use **Reset Permission** in Mixologist's
+settings and grant it again.
+
+An ad-hoc build launched directly from a terminal may also not have its status
+item attributed to a bundle identifier, so the private API cannot keep that item
+in the allow list. The `⌃⌥⌘M` shortcut and the settings window (reopen the app
+from Finder/Spotlight) keep working either way.
 
 The app is not sandboxed. It does not need Full Disk Access for the core hiding
 feature.
