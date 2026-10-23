@@ -25,6 +25,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// `MBSystemItemIdentifier` raw value, or nil for items the API cannot address.
 + (nullable NSNumber *)systemItemRawValueForItemIdentifier:(NSString *)identifier;
 
+/// Names used for Apple modules in settings.json (`clock`, `wifi`, `controlCenter`, …).
++ (nullable NSString *)nameForSystemItemRawValue:(NSInteger)rawValue;
++ (nullable NSNumber *)systemItemRawValueForName:(NSString *)name;
+
 @end
 
 NS_ASSUME_NONNULL_END

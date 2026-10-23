@@ -76,6 +76,8 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var resettingAccessibility = false
     @Published private(set) var loginItemStatus: SMAppService.Status = .notRegistered
     @Published var loginItemError: String?
+    @Published private(set) var settingsFileIssues: [String] = []
+    @Published private(set) var settingsFileUsable = true
 
     private let controller: MXVisibilityController
     private var observers: [NSObjectProtocol] = []
@@ -86,6 +88,7 @@ final class SettingsModel: ObservableObject {
             NSNotification.Name.MXVisibilityDidChange,
             .MXScanDidChange,
             .MXAccessibilityTrustDidChange,
+            .MXSettingsDidChange,
         ] {
             observers.append(
                 NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) {
@@ -118,6 +121,20 @@ final class SettingsModel: ObservableObject {
             Self.moduleRows(scan: scan, hidden: hiddenSystemItems)
             + Self.appRows(scan: scan, hidden: hiddenBundles, apple: true)
         loginItemStatus = SMAppService.mainApp.status
+        settingsFileIssues = controller.store.fileIssues
+        settingsFileUsable = controller.store.fileIsUsable
+    }
+
+    var settingsFilePath: String {
+        (controller.store.fileURL.path as NSString).abbreviatingWithTildeInPath
+    }
+
+    func openSettingsFile() {
+        NSWorkspace.shared.open(controller.store.fileURL)
+    }
+
+    func revealSettingsFile() {
+        NSWorkspace.shared.activateFileViewerSelecting([controller.store.fileURL])
     }
 
     /// Hidden apps stay listed even when the scan no longer sees them, otherwise

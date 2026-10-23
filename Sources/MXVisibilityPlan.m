@@ -76,6 +76,22 @@
     return nil;
 }
 
++ (NSArray<NSString *> *)systemItemNames {
+    // Indexed by raw value.
+    return @[@"battery", @"bluetooth", @"clock", @"display", @"keyboardBrightness",
+             @"sound", @"wifi", @"screenMirroring", @"controlCenter"];
+}
+
++ (NSString *)nameForSystemItemRawValue:(NSInteger)rawValue {
+    NSArray<NSString *> *names = [self systemItemNames];
+    return rawValue >= 0 && rawValue < (NSInteger)names.count ? names[(NSUInteger)rawValue] : nil;
+}
+
++ (NSNumber *)systemItemRawValueForName:(NSString *)name {
+    NSUInteger index = [[self systemItemNames] indexOfObject:name];
+    return index == NSNotFound ? nil : @(index);
+}
+
 - (NSString *)description {
     return [NSString stringWithFormat:@"<MXVisibilityPlan restrict=%d bundles=%lu system=%lu>",
             self.shouldRestrict,

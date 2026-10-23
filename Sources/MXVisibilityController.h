@@ -18,6 +18,9 @@ extern NSNotificationName const MXScanDidChangeNotification;
 @property (nonatomic, readonly, copy) NSString *statusDescription;
 @property (nonatomic, strong, readonly, nullable) NSError *lastError;
 
+- (instancetype)init;
+- (instancetype)initWithStore:(MXSettingsStore *)store NS_DESIGNATED_INITIALIZER;
+
 - (void)start;
 - (void)stop;
 

@@ -268,14 +268,41 @@ static int MXRunSelfTest(void) {
 
     // Regression: the custom -setRevealing: used to assign self.revealing and
     // recurse until the stack overflowed, crashing on every Reveal click.
-    MXVisibilityController *controller = [[MXVisibilityController alloc] init];
-    NSSet<NSString *> *previousHidden = controller.store.hiddenBundleIdentifiers;
-    controller.store.hiddenBundleIdentifiers = [NSSet set];
+    // A throwaway file: the real settings.json must never be touched by tests.
+    NSURL *testFile = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+        URLByAppendingPathComponent:[NSString stringWithFormat:@"mixologist-test-%@.json", NSUUID.UUID.UUIDString]];
+    MXSettingsStore *store = [[MXSettingsStore alloc] initWithFileURL:testFile];
+    MXVisibilityController *controller = [[MXVisibilityController alloc] initWithStore:store];
     [controller setRevealing:YES];
     ok &= MXCheck(controller.isRevealing, @"revealing state can be enabled");
     [controller setRevealing:NO];
     ok &= MXCheck(!controller.isRevealing, @"revealing state can be disabled without recursion");
-    controller.store.hiddenBundleIdentifiers = previousHidden;
+
+    store.hiddenBundleIdentifiers = [NSSet setWithObject:@"com.example.hidden"];
+    [store setSystemItem:2 hidden:YES];
+    store.hidingMethod = MXHidingMethodPermission;
+    MXSettingsStore *reread = [[MXSettingsStore alloc] initWithFileURL:testFile];
+    ok &= MXCheck([reread.hiddenBundleIdentifiers isEqualToSet:store.hiddenBundleIdentifiers] &&
+                  [reread.hiddenSystemItems isEqualToSet:[NSSet setWithObject:@2]] &&
+                  [reread.hidingMethod isEqualToString:MXHidingMethodPermission],
+                  @"settings survive a round trip through settings.json");
+    NSString *written = [NSString stringWithContentsOfURL:testFile encoding:NSUTF8StringEncoding error:NULL];
+    ok &= MXCheck([written containsString:@"\"clock\""], @"Apple items are written by name");
+
+    NSArray *issues = [reread applyFileData:[@"{\"hiddenApps\": 3, \"colour\": \"blue\", \"hiddenAppleItems\": [\"clock\", \"toaster\"]}"
+                                                dataUsingEncoding:NSUTF8StringEncoding]];
+    ok &= MXCheck(issues.count == 3, @"unknown keys, bad values and unknown items are reported");
+    ok &= MXCheck([reread.hiddenBundleIdentifiers containsObject:@"com.example.hidden"],
+                  @"a malformed value keeps the previous one");
+    ok &= MXCheck([reread.hiddenSystemItems isEqualToSet:[NSSet setWithObject:@2]], @"valid entries are kept beside unknown ones");
+    ok &= MXCheck([reread.hidingMethod isEqualToString:MXHidingMethodRestriction], @"a missing key means its default");
+
+    [reread applyFileData:[@"{ not json" dataUsingEncoding:NSUTF8StringEncoding]];
+    ok &= MXCheck(!reread.fileIsUsable && reread.fileIssues.count == 1, @"invalid JSON is reported and blocks saving");
+    reread.hidingMethod = MXHidingMethodRestriction;
+    NSString *afterBlockedSave = [NSString stringWithContentsOfURL:testFile encoding:NSUTF8StringEncoding error:NULL];
+    ok &= MXCheck([afterBlockedSave isEqualToString:written], @"an unusable file is never overwritten");
+    [NSFileManager.defaultManager removeItemAtURL:testFile error:NULL];
 
     ok &= MXCheck(ok, @"all visibility-plan tests passed");
     return ok ? 0 : 1;

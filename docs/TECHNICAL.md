@@ -19,7 +19,7 @@ comes along. No Xcode project is involved.
 | `Sources/MXVisibilityPlan.{h,m}` | Pure allow-list computation (unit-testable) |
 | `Sources/MXVisibilityController.{h,m}` | Scan scheduling, reveal lease, assertion lifecycle, workspace observers |
 | `Sources/MXPrivateAPI.{h,m}` | Defensive `dlopen` wrapper around `MenuBarClientCore` |
-| `Sources/MXSettingsStore.{h,m}` | `NSUserDefaults` persistence |
+| `Sources/MXSettingsStore.{h,m}` | `~/.config/mixologist/settings.json`: parsing, saving, live reload |
 | `Sources/MXPermissions.{h,m}` | Live Accessibility trust tracking, TCC reset, relaunch |
 | `Sources/MXHotKey.{h,m}` | Carbon system-wide hotkey |
 | `Sources/SettingsWindowController.swift` | Settings window chrome, exposed to Objective-C as `MXSettingsWindowController` |
@@ -132,6 +132,24 @@ cannot be matched by any string; it is hidden along with the selection. This is 
 property of the private API, not of the scanner. The same reason explains why an
 ad-hoc-signed build's own status item may disappear while hiding is active, which
 is why the hotkey and settings window are independent control paths.
+
+## Settings file
+
+User configuration lives in `~/.config/mixologist/settings.json` rather than
+`NSUserDefaults`, so it can be read, versioned and edited outside the app.
+JSON rather than a plist matches the author's other tools and stays editable
+without Xcode. `MXSettingsStore` keeps the values in memory, writes the whole
+file atomically after each change, and watches both the file and its folder
+(editors save by rename) with a 150 ms settle. A change whose bytes equal the
+last read or write is ignored, so Mixologist's own saves are not taken for
+edits. External edits post `MXSettingsDidChangeNotification`, and the controller
+re-applies the plan.
+
+Unknown keys, malformed values and unknown Apple item names are reported and
+skipped; a missing key means its default. While the file is not a JSON object
+nothing is written, so a half-finished edit is never overwritten. Internal state
+(welcome shown, Accessibility history, the permission journal) stays in
+`NSUserDefaults`. `--self-test` uses a temporary file, never the real one.
 
 ## Accessibility
 

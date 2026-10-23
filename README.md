@@ -78,6 +78,32 @@ Applications** when this happens; the `⌃⌥⌘M` shortcut works either way.
 The app is not sandboxed. It does not need Full Disk Access for the core hiding
 feature.
 
+## Configuration
+
+Settings live in `~/.config/mixologist/settings.json`, so they can be versioned
+with your dotfiles or edited by hand. Mixologist writes the file whenever you
+change something in Settings and applies edits to it as soon as you save; any
+part it can't use is reported under Settings → General → Configuration. While
+the file isn't valid JSON, Mixologist leaves it alone and keeps its last good
+values.
+
+```json
+{
+  "hidingMethod": "restriction",
+  "hiddenApps": ["com.1password.1password", "notion.id"],
+  "hiddenAppleItems": ["clock", "wifi"]
+}
+```
+
+| Key | Values |
+| --- | --- |
+| `hidingMethod` | `"restriction"` (default) or `"permission"`; see [Hiding methods](#hiding-methods) |
+| `hiddenApps` | Bundle identifiers whose menu bar items are hidden |
+| `hiddenAppleItems` | Any of `battery`, `bluetooth`, `clock`, `display`, `keyboardBrightness`, `sound`, `wifi`, `screenMirroring`, `controlCenter` |
+
+A missing key takes its default. The first launch of this version moves settings
+stored by older versions into the file.
+
 ## Usage
 
 1. Launch Mixologist.

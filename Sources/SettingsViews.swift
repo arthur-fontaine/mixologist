@@ -119,6 +119,8 @@ private struct GeneralPane: View {
 
             PermissionsSection(model: model)
 
+            SettingsFileSection(model: model)
+
             Section("Startup") {
                 Toggle(isOn: $model.launchAtLogin) {
                     Text("Open at login")
@@ -167,6 +169,36 @@ private struct GeneralPane: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+private struct SettingsFileSection: View {
+    @ObservedObject var model: SettingsModel
+
+    var body: some View {
+        Section {
+            SettingsRow(
+                title: "settings.json",
+                subtitle: "\(model.settingsFilePath)\nEdits made there apply as soon as you save.",
+                subtitleLineLimit: 3
+            ) {
+                SettingsTabIcon(systemImage: "doc.text", tint: .secondary, size: SettingsMetrics.rowIcon)
+                    .accessibilityHidden(true)
+            } trailing: {
+                Button("Open") { model.openSettingsFile() }
+                Button("Show in Finder") { model.revealSettingsFile() }
+            }
+            if let first = model.settingsFileIssues.first {
+                let more = model.settingsFileIssues.count > 1 ? " (+\(model.settingsFileIssues.count - 1) more)" : ""
+                SettingsNotice(
+                    title: model.settingsFileUsable ? "Part of settings.json was ignored" : "settings.json can’t be read",
+                    message: first + more
+                        + (model.settingsFileUsable ? "" : " Changes made here aren’t saved until the file is fixed."),
+                    tint: model.settingsFileUsable ? .orange : .red)
+            }
+        } header: {
+            Text("Configuration")
+        }
     }
 }
 

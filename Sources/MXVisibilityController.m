@@ -27,9 +27,13 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 @implementation MXVisibilityController
 
 - (instancetype)init {
+    return [self initWithStore:[[MXSettingsStore alloc] init]];
+}
+
+- (instancetype)initWithStore:(MXSettingsStore *)store {
     self = [super init];
     if (self) {
-        _store = [[MXSettingsStore alloc] init];
+        _store = store;
         _lastScan = [[MXScanResult alloc] init];
         _scanQueue = dispatch_queue_create("dev.mixologist.scan", DISPATCH_QUEUE_SERIAL);
         _queuedScanCompletions = [NSMutableArray array];
@@ -40,6 +44,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 
 - (void)start {
     [self registerWorkspaceObservers];
+    [self.store startWatching];
     [self refreshScanWithCompletion:nil];
 
     __weak typeof(self) weakSelf = self;
@@ -97,6 +102,14 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
                                           selector:@selector(accessibilityTrustDidChange:)
                                               name:MXAccessibilityTrustDidChangeNotification
                                             object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                          selector:@selector(settingsFileDidChange:)
+                                              name:MXSettingsDidChangeNotification
+                                            object:self.store];
+}
+
+- (void)settingsFileDidChange:(NSNotification *)notification {
+    [self applyVisibilityIfNeededForce:YES];
 }
 
 - (void)accessibilityTrustDidChange:(NSNotification *)notification {
