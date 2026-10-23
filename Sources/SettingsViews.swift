@@ -16,6 +16,16 @@ struct SettingsRootView: View {
         }
         .navigationTitle(model.tab.title)
         .alert(
+            "Couldn’t move Mixologist to Applications",
+            isPresented: Binding(
+                get: { model.moveError != nil },
+                set: { if !$0 { model.moveError = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.moveError ?? "")
+        }
+        .alert(
             "Couldn’t change the login item",
             isPresented: Binding(
                 get: { model.loginItemError != nil },
@@ -96,6 +106,15 @@ private struct GeneralPane: View {
                 if let error = model.errorMessage {
                     SettingsNotice(title: "Hiding isn’t active", message: error, tint: .red)
                 }
+                if !model.runsFromApplications {
+                    SettingsNotice(
+                        title: "The dot hides along with your items",
+                        message:
+                            "Run from outside Applications, Mixologist can’t keep its own dot in the menu bar while hiding."
+                    ) {
+                        Button("Move to Applications") { model.moveToApplications() }
+                    }
+                }
             }
 
             PermissionsSection(model: model)
@@ -117,13 +136,30 @@ private struct GeneralPane: View {
 
             Section {
                 SettingsRow(
-                    title: "Reveal hidden items",
-                    subtitle: "Works even when Mixologist’s own icon is hidden."
+                    title: "Click the menu bar dot",
+                    subtitle: "Shows hidden items for 15 seconds; click again to hide them. Right-click it for the menu."
                 ) {
+                    Circle()
+                        .frame(width: 6, height: 6)
+                        .frame(width: SettingsMetrics.rowIcon, height: SettingsMetrics.rowIcon)
+                        .background(
+                            Color.primary.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: SettingsMetrics.tileRadius, style: .continuous))
+                        .accessibilityHidden(true)
+                } trailing: {
+                    EmptyView()
+                }
+                SettingsRow(
+                    title: "Keyboard shortcut",
+                    subtitle: "Works even when the dot itself is hidden."
+                ) {
+                    SettingsTabIcon(systemImage: "keyboard", tint: .secondary, size: SettingsMetrics.rowIcon)
+                        .accessibilityHidden(true)
+                } trailing: {
                     KeyCaps(keys: ["⌃", "⌥", "⌘", "M"])
                 }
             } header: {
-                Text("Keyboard Shortcut")
+                Text("Revealing")
             } footer: {
                 Text("Quitting Mixologist brings every menu bar item back.")
                     .font(.caption)

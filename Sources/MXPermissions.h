@@ -27,6 +27,8 @@ extern NSNotificationName const MXAccessibilityTrustDidChangeNotification;
 
 /// Starts a fresh copy of the app once this process has exited, then quits.
 + (void)relaunch;
+/// Same, but opens the app bundle at `bundlePath` instead of this one.
++ (void)relaunchAtPath:(NSString *)bundlePath;
 
 @end
 

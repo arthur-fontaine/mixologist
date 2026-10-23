@@ -13,6 +13,7 @@
 @property (nonatomic, strong, nullable) MXHotKey *hotKey;
 @property (nonatomic, strong, nullable) NSMenuItem *revealMenuItem;
 @property (nonatomic, strong, nullable) NSMenuItem *grantMenuItem;
+@property (nonatomic, strong) NSMenu *statusMenu;
 @property (nonatomic, strong, nullable) NSMenuItem *grantSeparatorItem;
 @property (nonatomic) BOOL didShowSettings;
 @end
@@ -119,31 +120,37 @@ static NSString *const kMXShowSettingsNotification = @"dev.mixologist.Mixologist
     NSApp.mainMenu = mainMenu;
 }
 
-- (void)installStatusItem {
-    self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
-    NSStatusBarButton *button = self.statusItem.button;
-    button.toolTip = @"Mixologist — menu bar organizer";
-
-    NSImage *image = [NSImage imageWithSystemSymbolName:@"menubar.rectangle"
-                               accessibilityDescription:@"Mixologist"];
-    if (!image) {
-        image = [NSImage imageWithSize:NSMakeSize(18, 18) flipped:NO drawingHandler:^BOOL(NSRect rect) {
-            NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(rect, 2, 4)
-                                                                xRadius:2
-                                                                yRadius:2];
-            path.lineWidth = 1.4;
-            [NSColor.blackColor setStroke];
-            [path stroke];
-            [NSBezierPath strokeLineFromPoint:NSMakePoint(rect.origin.x + 3, rect.origin.y + 10)
-                                      toPoint:NSMakePoint(rect.origin.x + rect.size.width - 3,
-                                                          rect.origin.y + 10)];
-            return YES;
-        }];
-    }
+/// Bartender-style dot: filled while items are hidden, a ring while they are
+/// revealed. Drawn rather than an SF Symbol so it stays a crisp 6 pt.
++ (NSImage *)dotImageRevealing:(BOOL)revealing {
+    NSImage *image = [NSImage imageWithSize:NSMakeSize(10, 10) flipped:NO drawingHandler:^BOOL(NSRect rect) {
+        NSRect dot = NSInsetRect(rect, 2, 2);
+        [NSColor.blackColor set];
+        if (revealing) {
+            NSBezierPath *ring = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(dot, 0.6, 0.6)];
+            ring.lineWidth = 1.2;
+            [ring stroke];
+        } else {
+            [[NSBezierPath bezierPathWithOvalInRect:dot] fill];
+        }
+        return YES;
+    }];
     image.template = YES;
-    button.image = image;
+    image.accessibilityDescription = revealing ? @"Mixologist, hidden items revealed" : @"Mixologist";
+    return image;
+}
+
+- (void)installStatusItem {
+    self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:16];
+    self.statusItem.autosaveName = @"MixologistDot";
+    NSStatusBarButton *button = self.statusItem.button;
+    button.image = [MXAppDelegate dotImageRevealing:NO];
+    button.target = self;
+    button.action = @selector(statusItemClicked:);
+    [button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
 
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Mixologist"];
+    menu.autoenablesItems = NO;
     self.grantMenuItem = [[NSMenuItem alloc] initWithTitle:@"Grant Accessibility Access…"
                                                     action:@selector(grantAccessibility:)
                                              keyEquivalent:@""];
@@ -200,7 +207,24 @@ static NSString *const kMXShowSettingsNotification = @"dev.mixologist.Mixologist
     quit.target = NSApp;
     [menu addItem:quit];
 
-    self.statusItem.menu = menu;
+    // Not `statusItem.menu`: that would open on every click, leaving the dot
+    // no way to reveal on a plain click.
+    self.statusMenu = menu;
+}
+
+- (void)statusItemClicked:(id)sender {
+    NSEvent *event = NSApp.currentEvent;
+    BOOL wantsMenu = event.type == NSEventTypeRightMouseUp ||
+                     (event.modifierFlags & (NSEventModifierFlagControl | NSEventModifierFlagOption)) ||
+                     (self.visibilityController.hiddenCount == 0 && !self.visibilityController.isRevealing);
+    if (!wantsMenu) {
+        [self toggleReveal:nil];
+        return;
+    }
+    // Attaching the menu only for this click keeps plain clicks free for revealing.
+    self.statusItem.menu = self.statusMenu;
+    [self.statusItem.button performClick:nil];
+    self.statusItem.menu = nil;
 }
 
 - (void)installHotKey {
@@ -231,7 +255,14 @@ static NSString *const kMXShowSettingsNotification = @"dev.mixologist.Mixologist
     BOOL revealing = self.visibilityController.isRevealing;
     self.revealMenuItem.title = revealing ? @"Hide Revealed Items" : @"Reveal Hidden Items (15 s)";
     self.revealMenuItem.state = revealing ? NSControlStateValueOn : NSControlStateValueOff;
-    self.statusItem.button.toolTip = self.visibilityController.statusDescription;
+    self.revealMenuItem.enabled = revealing || self.visibilityController.hiddenCount > 0;
+
+    NSStatusBarButton *button = self.statusItem.button;
+    button.image = [MXAppDelegate dotImageRevealing:revealing];
+    // Dimmed when there is nothing to reveal; a click then opens the menu.
+    button.appearsDisabled = !revealing && self.visibilityController.hiddenCount == 0;
+    NSString *hint = revealing ? @"Click to hide again." : @"Click to reveal hidden items. Right-click for the menu.";
+    button.toolTip = [NSString stringWithFormat:@"%@\n%@", self.visibilityController.statusDescription, hint];
 }
 
 - (void)toggleReveal:(id)sender {

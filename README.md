@@ -26,7 +26,8 @@ core behaviour in a small, auditable codebase:
 
 - Hide third-party menu bar items per application.
 - Hide Apple's own items too: Clock, Wi-Fi, Battery, Control Center, Spotlight, …
-- Temporary **Reveal** of all hidden items for 15 seconds.
+- A Bartender-style **dot** in the menu bar: click it to reveal hidden items for
+  15 seconds, click again to hide them, right-click for the menu.
 - Global shortcut `⌃⌥⌘M` toggles the reveal.
 - Settings window with live discovery of running apps and their items.
 - No screen capture, no network, no analytics, no accounts.
@@ -68,10 +69,11 @@ that exact binary, so every rebuild loses it while System Settings still shows
 the switch as on. If that happens, use **Reset Permission** in Mixologist's
 settings and grant it again.
 
-An ad-hoc build launched directly from a terminal may also not have its status
-item attributed to a bundle identifier, so the private API cannot keep that item
-in the allow list. The `⌃⌥⌘M` shortcut and the settings window (reopen the app
-from Finder/Spotlight) keep working either way.
+Run Mixologist from `/Applications` (`make run` installs it there first). From
+any other folder MenuBarAgent attributes its status item to the executable path
+instead of the bundle identifier, so the allow list cannot keep the dot visible
+and it hides along with everything else. Settings offers **Move to
+Applications** when this happens; the `⌃⌥⌘M` shortcut works either way.
 
 The app is not sandboxed. It does not need Full Disk Access for the core hiding
 feature.
@@ -117,17 +119,18 @@ extension points are in [`docs/TECHNICAL.md`](docs/TECHNICAL.md).
   Hiding one item from an app that exposes several items hides all of them.
 - **Unattributed items.** Some status items cannot be attributed to a bundle
   identifier by the menu bar server, for example an app launched directly by a
-  management agent. Those items cannot be allow-listed and are hidden whenever a
-  restriction is active. This includes some ad-hoc/directly launched builds of
-  Mixologist itself, which is why the hotkey and settings window exist.
+  management agent or run from outside `/Applications`. Those items cannot be
+  allow-listed and are hidden whenever a restriction is active. That includes
+  Mixologist's own dot when it runs from a build folder.
 - **macOS 26/27 only.** Older systems do not have MenuBarAgent.
 - **No ordering/profiles yet.** Bartender's position database and compatibility
   mode are documented for future work, but not implemented.
 - **Other menu bar managers.** Running Mixologist alongside Bartender, Ice, Thaw,
   or similar installs a second restriction. An item stays visible if either one
   allows it, so they undo each other's hiding. Use one at a time.
-- **Signing.** An ad-hoc build may not be able to keep its own icon on screen while
-  hiding is active; use the hotkey or reopen the app.
+- **Crowded menu bars.** While revealing, a full menu bar (especially next to a
+  notch) can push the dot out of sight; ⌘-drag it further right, or wait for
+  the 15-second reveal to end.
 
 ## Safety
 

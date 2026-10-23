@@ -252,6 +252,31 @@ final class SettingsModel: ObservableObject {
         }
     }
 
+    /// MenuBarAgent attributes the status item of an app running from elsewhere
+    /// (a build folder, Downloads) to its executable path rather than its bundle
+    /// identifier, so the allow list cannot keep the dot visible while hiding.
+    var runsFromApplications: Bool {
+        Bundle.main.bundlePath.hasPrefix("/Applications/")
+    }
+
+    @Published var moveError: String?
+
+    func moveToApplications() {
+        let source = Bundle.main.bundleURL
+        let destination = URL(fileURLWithPath: "/Applications").appendingPathComponent(source.lastPathComponent)
+        let fileManager = FileManager.default
+        do {
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.trashItem(at: destination, resultingItemURL: nil)
+            }
+            try fileManager.copyItem(at: source, to: destination)
+        } catch {
+            moveError = error.localizedDescription
+            return
+        }
+        MXPermissions.relaunch(atPath: destination.path)
+    }
+
     func openLoginItemsSettings() {
         SMAppService.openSystemSettingsLoginItems()
     }

@@ -158,6 +158,10 @@ static NSString *const kMXWasAccessibilityTrustedKey = @"wasAccessibilityTrusted
 }
 
 + (void)relaunch {
+    [self relaunchAtPath:NSBundle.mainBundle.bundlePath];
+}
+
++ (void)relaunchAtPath:(NSString *)bundlePath {
     NSTask *task = [[NSTask alloc] init];
     task.executableURL = [NSURL fileURLWithPath:@"/bin/sh"];
     // $0 is our pid and $1 the bundle path; waiting for the exit keeps the new
@@ -166,7 +170,7 @@ static NSString *const kMXWasAccessibilityTrustedKey = @"wasAccessibilityTrusted
         @"-c",
         @"while kill -0 \"$0\" 2>/dev/null; do sleep 0.1; done; exec /usr/bin/open \"$1\"",
         [NSString stringWithFormat:@"%d", NSProcessInfo.processInfo.processIdentifier],
-        NSBundle.mainBundle.bundlePath,
+        bundlePath,
     ];
     NSError *error = nil;
     if (![task launchAndReturnError:&error]) {

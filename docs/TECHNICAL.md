@@ -162,6 +162,19 @@ switch immediately updates the stored hidden set and re-applies the plan. Hidden
 apps stay listed even when the scan no longer sees them, so they can always be
 turned back on individually.
 
+The status item is a Bartender-style dot: a plain click toggles a 15-second
+reveal (the dot becomes a ring), and a right-click, ⌃-click or ⌥-click opens the
+menu. The menu is attached only for that click, because `NSStatusItem.menu`
+would otherwise swallow every click. With nothing hidden the dot is dimmed and a
+click opens the menu.
+
+MenuBarAgent attributes a status item to its app's bundle identifier only when
+the app runs from `/Applications`. Run from a build folder, the item is tracked
+by executable path (`adhocBinary` in Control Center's `trackedApplications`),
+the allow list cannot match it, and the dot is hidden along with everything
+else. `make run` therefore installs first, and settings offer **Move to
+Applications**, which copies the bundle and relaunches from there.
+
 The status item is a convenience, not the only control path. The global hotkey
 `⌃⌥⌘M` and the settings window remain usable even if Mixologist's own status item
 is hidden by the restriction, which can happen when the app is launched directly

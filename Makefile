@@ -68,9 +68,10 @@ sign:
 	  codesign --force --deep --sign - "$(APP)"
 	@echo "Signed $(APP) with $(CODESIGN_IDENTITY)"
 
-run: $(APP)
-	@pkill -x $(APP_NAME) 2>/dev/null; while pgrep -x $(APP_NAME) >/dev/null; do sleep 0.1; done
-	open "$(APP)"
+# Runs the installed copy: launched from build/, MenuBarAgent attributes the
+# status item to the executable path, so it is hidden along with everything else.
+run: install
+	open "/Applications/$(APP_NAME).app"
 
 diagnose: $(APP)
 	"$(BINARY)" --diagnose
@@ -85,6 +86,7 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 install: $(APP)
+	@pkill -x $(APP_NAME) 2>/dev/null; while pgrep -x $(APP_NAME) >/dev/null; do sleep 0.1; done
 	rm -rf "/Applications/$(APP_NAME).app"
 	cp -R "$(APP)" "/Applications/$(APP_NAME).app"
 	@echo "Installed /Applications/$(APP_NAME).app"
