@@ -1,2 +1,7 @@
 .env
 .direnv/
+
+# Build output
+build/
+DerivedData/
+.DS_Store

@@ -1,0 +1,143 @@
+# Mixologist
+
+A free, open-source menu bar organizer for macOS 26/27. It hides menu bar items
+using macOS's own menu bar visibility restriction — **no Screen Recording
+permission, no subscription, no paywall.**
+
+Mixologist is an independent clean-room project. It is not affiliated with
+Bartender or Surtees Studios.
+
+## Why this exists
+
+Bartender 7 is currently the best-known way to hide menu bar items on macOS 27.
+This project reverse-engineered the mechanism (see
+[`docs/REVERSE_ENGINEERING.md`](docs/REVERSE_ENGINEERING.md)) and implements the
+core behaviour in a small, auditable codebase:
+
+- macOS 26 introduced `MenuBarAgent`, which owns a visibility-restriction service.
+- A private client API, `MenuBarClientCore.MBAssessmentModeAssertion`, can install
+  an allow list with the `assessmentMode` origin.
+- Everything not on the allow list disappears from the status area.
+- Releasing the assertion restores every item.
+- Screen Recording is only needed for pixels, not for hiding. Mixologist never
+  captures the screen.
+
+## Features
+
+- Hide third-party menu bar items per application.
+- Apple's own items (Clock, Wi-Fi, Battery, Control Center, …) stay visible.
+- Temporary **Reveal** of all hidden items for 15 seconds.
+- Global shortcut `⌃⌥⌘M` toggles the reveal.
+- Settings window with live discovery of running apps and their items.
+- No screen capture, no network, no analytics, no accounts.
+- Quitting (or crashing) releases the restriction and restores the menu bar.
+
+## Requirements
+
+- macOS 26 or later (developed and tested on macOS 27.0, build `26A428`).
+- Accessibility permission, used to discover and name menu bar items.
+- Xcode command-line tools (`clang`) to build. No Xcode project is required.
+
+## Build and run
+
+```sh
+make            # builds build/Mixologist.app
+make run        # builds and opens it
+make diagnose   # prints permissions, API availability, and a live scan
+make test       # runs the pure allow-list tests
+```
+
+To install:
+
+```sh
+make install    # copies to /Applications/Mixologist.app
+```
+
+### Code signing
+
+The default build is ad-hoc signed. If you launch the executable directly from a
+terminal instead of through Finder/LaunchServices, macOS may not attribute its
+status item to a bundle identifier, so the private API cannot keep that item in
+the allow list. Mixologist therefore always provides two independent escape
+hatches: the `⌃⌥⌘M` global shortcut and the settings window (reopen the app from
+Finder/Spotlight to show it).
+
+For the best experience, sign with a development identity:
+
+```sh
+CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" make
+```
+
+The app is not sandboxed. It does not need Full Disk Access for the core hiding
+feature.
+
+## Usage
+
+1. Launch Mixologist.
+2. Grant Accessibility when prompted (System Settings → Privacy & Security →
+   Accessibility).
+3. Press **Rescan**.
+4. Untick an application to hide its menu bar items. Ticked applications stay
+   visible.
+5. Use **Reveal Hidden (15 s)** or `⌃⌥⌘M` to show everything temporarily.
+6. **Unhide All Apps** permanently restores everything.
+7. Quit Mixologist to release the restriction.
+
+Apple's system items (Clock, Wi-Fi, Battery, Control Center, Display, …) are kept
+visible by passing every `MBSystemItemIdentifier` raw value (`0...8`) to the
+private API. Applications without a bundle identifier — and status items that
+macOS cannot attribute to an allow-listed bundle, including some apps launched
+directly by an agent — cannot be selectively allow-listed and will be hidden
+while a restriction is active. This is a limitation of the system allow-list API,
+not a choice Mixologist makes.
+
+## How it works (short version)
+
+```
+Accessibility scan ──► allow-list plan ──► MenuBarClientCore assertion
+       │                      │                       │
+  app + item names      visible bundles         MenuBarAgent hides
+  system item IDs       + system items          everything else
+```
+
+The full evidence trail — shipped Bartender docs, private class introspection,
+live plist schemas, and controlled visibility experiments — is in
+[`docs/REVERSE_ENGINEERING.md`](docs/REVERSE_ENGINEERING.md). Architecture and
+extension points are in [`docs/TECHNICAL.md`](docs/TECHNICAL.md).
+
+## Limitations
+
+- **Private API.** `MenuBarClientCore` is not public. Apple can change or remove it
+  in any macOS update. This app is therefore not App Store material.
+- **Per-app granularity.** The system restriction works per bundle identifier.
+  Hiding one item from an app that exposes several items hides all of them.
+- **Unattributed items.** Some status items cannot be attributed to a bundle
+  identifier by the menu bar server, for example an app launched directly by a
+  management agent. Those items cannot be allow-listed and are hidden whenever a
+  restriction is active. This includes some ad-hoc/directly launched builds of
+  Mixologist itself, which is why the hotkey and settings window exist.
+- **macOS 26/27 only.** Older systems do not have MenuBarAgent.
+- **No ordering/profiles yet.** Bartender's position database and compatibility
+  mode are documented for future work, but not implemented.
+- **Other menu bar managers.** Running Mixologist alongside Bartender, Ice, Thaw,
+  or similar can produce intersecting restrictions. Use one at a time.
+- **Signing.** An ad-hoc build may not be able to keep its own icon on screen while
+  hiding is active; use the hotkey or reopen the app.
+
+## Safety
+
+The restriction is owned by the running process. If Mixologist quits or crashes,
+macOS invalidates the XPC assertion and restores the menu bar. This was verified
+with a graceful quit and with `SIGKILL`; both restored every item. The app also
+releases the restriction in `applicationWillTerminate`. The global shortcut and
+settings window do not depend on Mixologist's status item being visible.
+
+## Privacy
+
+Mixologist reads menu bar metadata through the Accessibility API and stores only a
+list of hidden bundle identifiers in `NSUserDefaults`. It makes no network
+requests and contains no analytics or update framework.
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).
