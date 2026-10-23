@@ -20,7 +20,11 @@
         in
         {
           default = pkgs.mkShell {
-            packages = [ pkgs.opencode ];
+            packages = [
+              pkgs.opencode
+              # Runs the REA MCP server via npx (see opencode.json).
+              pkgs.nodejs
+            ];
 
             # opencode's built-in "opencode" provider picks up OPENCODE_API_KEY from the environment.
             shellHook = ''
