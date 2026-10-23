@@ -63,8 +63,8 @@
         @[@4, @[@"keyboardbrightness", @"brightness"]],
         @[@5, @[@"sound", @"volume"]],
         @[@6, @[@"wifi", @"airport"]],
-        @[@7, @[@"controlcenter"]],
-        @[@8, @[@"screenmirroring", @"airplay"]],
+        @[@7, @[@"screenmirroring", @"airplay"]],
+        @[@8, @[@"controlcenter"]],
     ];
     for (NSArray *entry in table) {
         for (NSString *candidate in entry[1]) {

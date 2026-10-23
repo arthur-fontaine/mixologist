@@ -65,7 +65,9 @@ static NSString *const kFrameworkPath =
     // MBSystemItemIdentifier cases, verified against the macOS 27
     // MenuBarClientCore Swift metadata:
     // 0 battery, 1 bluetooth, 2 clock, 3 displays, 4 keyboard, 5 volume,
-    // 6 wifi, 7 primaryBentoBox (Control Center), 8 screenMirroring.
+    // 6 wifi, 7 screenMirroring, 8 primaryBentoBox (Control Center). The
+    // `stringValue` getter and a live test (leaving out 8 hides Control
+    // Center) both confirm this order.
     return @[@0, @1, @2, @3, @4, @5, @6, @7, @8];
 }
 

@@ -71,8 +71,8 @@ its item. `MXVisibilityPlan` is deliberately pure so this behaviour is covered b
 | 4 | `keyboard` | Keyboard brightness |
 | 5 | `volume` | Sound |
 | 6 | `wifi` | Wi-Fi |
-| 7 | `primaryBentoBox` | Control Center |
-| 8 | `screenMirroring` | Screen Mirroring |
+| 7 | `screenMirroring` | Screen Mirroring |
+| 8 | `primaryBentoBox` | Control Center |
 
 Passing all nine preserves Apple's items and does **not** force on items the user
 has disabled in System Settings. Leaving one out hides only that module. Passing strings is a trap: the initializer

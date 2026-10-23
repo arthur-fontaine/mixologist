@@ -262,7 +262,7 @@ static int MXRunSelfTest(void) {
                   @"MenuBarAgent is always allowed");
     ok &= MXCheck([[MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.apple.menuextra.clock"] isEqual:@2] &&
                   [[MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.apple.menuextra.wifi"] isEqual:@6] &&
-                  [[MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.apple.menuextra.controlcenter"] isEqual:@7] &&
+                  [[MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.apple.menuextra.controlcenter"] isEqual:@8] &&
                   [MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.example.item"] == nil,
                   @"Apple module identifiers map to raw values");
 

@@ -54,8 +54,8 @@ private let appleModules: [Int: (name: String, symbol: String)] = [
     4: ("Keyboard Brightness", "light.max"),
     5: ("Sound", "speaker.wave.2.fill"),
     6: ("Wi‑Fi", "wifi"),
-    7: ("Control Center", "switch.2"),
-    8: ("Screen Mirroring", "rectangle.on.rectangle"),
+    7: ("Screen Mirroring", "rectangle.on.rectangle"),
+    8: ("Control Center", "switch.2"),
 ]
 
 /// SwiftUI's view of `MXVisibilityController`, refreshed from its notifications.

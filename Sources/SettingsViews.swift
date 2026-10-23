@@ -312,7 +312,7 @@ private struct MenuBarItemsPane: View {
                     Text("Apple")
                 } footer: {
                     Text(
-                        "Hiding an Apple item only removes its icon; the feature keeps working. Items turned off in Control Center settings stay off."
+                        "Hiding an Apple item only removes its icon; the feature keeps working. While anything is hidden, macOS also hides Control Center modules such as Now Playing and Focus: its restriction has no way to keep them. Click the dot or open Control Center to reach them."
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)

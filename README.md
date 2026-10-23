@@ -115,6 +115,10 @@ extension points are in [`docs/TECHNICAL.md`](docs/TECHNICAL.md).
 
 - **Private API.** `MenuBarClientCore` is not public. Apple can change or remove it
   in any macOS update. This app is therefore not App Store material.
+- **Now Playing, Focus and similar modules.** While anything is hidden, macOS
+  also hides the Control Center modules you added to the menu bar beyond the nine
+  basic ones (Now Playing, Focus, …). The restriction API cannot name them, so no
+  allow list keeps them; they come back whenever you reveal.
 - **Per-app granularity.** The system restriction works per bundle identifier.
   Hiding one item from an app that exposes several items hides all of them.
 - **Unattributed items.** Some status items cannot be attributed to a bundle

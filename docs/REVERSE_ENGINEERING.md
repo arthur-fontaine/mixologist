@@ -236,8 +236,8 @@ observe the menu bar.
 
    ```text
    0 battery          3 displays            6 wifi
-   1 bluetooth        4 keyboard            7 primaryBentoBox
-   2 clock            5 volume              8 screenMirroring
+   1 bluetooth        4 keyboard            7 screenMirroring
+   2 clock            5 volume              8 primaryBentoBox
    ```
 
    Passing all nine keeps Apple's items visible without forcing on modules the
@@ -280,6 +280,22 @@ observe the menu bar.
    Clock, a second process's restriction without it did not hide the Clock, and
    items hidden by the first reappeared under the second's broader allow list.
    An item is visible when any active restriction allows it.
+
+10. **Control Center modules beyond the nine** — Now Playing
+    (`module:NowPlaying`) and Focus (`module:FocusModes`) disappear under any
+    restriction and no allow list brings them back: not the nine system items,
+    not raw values 9–12, and not any bundle identifier tried
+    (`com.apple.controlcenter.nowplaying`, `com.apple.menuextra.focusmode`,
+    `com.apple.MediaRemoteUIService`, and others). MenuBarAgent converts the
+    client's items by name (`MBSystemItemIdentifier.stringValue` matched against
+    its own 11-case `MenuBarSystemItemIdentifier`), and its extra cases,
+    `addNewBentoBoxButton` and `bentoBox`, have no client counterpart. These
+    modules are `bentoBox` items, so assessment mode cannot allow them. The
+    screen-recording stop button stays visible because `com.apple.screencaptureui`
+    is a running, allow-listed bundle.
+11. **Raw values 7 and 8** — `MBSystemItemIdentifier.stringValue` returns
+    `screenMirroring` for 7 and `primaryBentoBox` for 8, and leaving out 8 (not 7)
+    hides Control Center. Earlier revisions of this document had them swapped.
 
 MenuBarAgent logs the restriction lifecycle:
 
