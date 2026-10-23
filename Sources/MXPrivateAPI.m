@@ -130,19 +130,27 @@ static NSString *const kFrameworkPath =
     self.active = YES;
 
     __weak typeof(self) weakSelf = self;
+    // The reply arrives on an XPC queue; callers update AppKit state.
     [(MBAssessmentModeAssertion *)assertion activateWithConfiguration:configuration
                                                    completionHandler:^(NSError *error) {
-        __strong typeof(weakSelf) self = weakSelf;
-        if (!self) {
-            return;
-        }
-        if (error) {
-            self.active = NO;
-            self->_assertion = nil;
-        }
-        if (completion) {
-            completion(error);
-        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) self = weakSelf;
+            if (!self) {
+                return;
+            }
+            // A late reply for an assertion that has since been replaced must
+            // not tear down the one currently installed.
+            if (self->_assertion != assertion) {
+                return;
+            }
+            if (error) {
+                self.active = NO;
+                self->_assertion = nil;
+            }
+            if (completion) {
+                completion(error);
+            }
+        });
     }];
     return YES;
 }
