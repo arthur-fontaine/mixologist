@@ -76,6 +76,18 @@
     return nil;
 }
 
++ (NSSet<NSString *> *)bundlesHiddenByPermissionAmong:(NSSet<NSString *> *)hiddenBundleIdentifiers
+                                  ownBundleIdentifier:(NSString *)ownBundleIdentifier {
+    NSMutableSet<NSString *> *bundles = [NSMutableSet set];
+    for (NSString *bundleIdentifier in hiddenBundleIdentifiers) {
+        if (bundleIdentifier.length && ![bundleIdentifier hasPrefix:@"com.apple."] &&
+            ![bundleIdentifier isEqualToString:ownBundleIdentifier ?: @""]) {
+            [bundles addObject:bundleIdentifier];
+        }
+    }
+    return bundles;
+}
+
 + (NSArray<NSString *> *)systemItemNames {
     // Indexed by raw value.
     return @[@"battery", @"bluetooth", @"clock", @"display", @"keyboardBrightness",

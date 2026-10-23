@@ -1,4 +1,5 @@
 #import "MXVisibilityController.h"
+#import "MXMenuBarPermissions.h"
 #import "MXPermissions.h"
 #import "MXPrivateAPI.h"
 
@@ -8,10 +9,14 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 @interface MXVisibilityController ()
 @property (nonatomic, strong, readwrite) MXSettingsStore *store;
 @property (nonatomic, strong, readwrite) MXScanResult *lastScan;
-@property (nonatomic, readwrite, getter=isHidingActive) BOOL hidingActive;
+@property (nonatomic) BOOL restrictionActive;
+@property (nonatomic) BOOL permissionActive;
 @property (nonatomic, readwrite, getter=isRevealing) BOOL revealing;
 @property (nonatomic, readwrite, getter=isPrivateAPIAvailable) BOOL privateAPIAvailable;
-@property (nonatomic, strong, readwrite, nullable) NSError *lastError;
+@property (nonatomic, strong, nullable) NSError *restrictionError;
+@property (nonatomic, strong, nullable) NSError *permissionError;
+/// nil in the self-test, which must never touch the user's menu bar permissions.
+@property (nonatomic, strong, nullable) MXMenuBarPermissions *permissions;
 @property (nonatomic, copy) NSString *lastAppliedSignature;
 @property (nonatomic) NSUInteger applyGeneration;
 @property (nonatomic, strong, nullable) NSTimer *revealTimer;
@@ -27,13 +32,14 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 @implementation MXVisibilityController
 
 - (instancetype)init {
-    return [self initWithStore:[[MXSettingsStore alloc] init]];
+    return [self initWithStore:[[MXSettingsStore alloc] init] permissions:MXMenuBarPermissions.shared];
 }
 
-- (instancetype)initWithStore:(MXSettingsStore *)store {
+- (instancetype)initWithStore:(MXSettingsStore *)store permissions:(MXMenuBarPermissions *)permissions {
     self = [super init];
     if (self) {
         _store = store;
+        _permissions = permissions;
         _lastScan = [[MXScanResult alloc] init];
         _scanQueue = dispatch_queue_create("dev.mixologist.scan", DISPATCH_QUEUE_SERIAL);
         _queuedScanCompletions = [NSMutableArray array];
@@ -55,7 +61,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
         if (!self) {
             return;
         }
-        if (self.hidingActive || self.revealing || self.hiddenCount > 0) {
+        if (self.isHidingActive || self.revealing || self.hiddenCount > 0) {
             [self refreshScanWithCompletion:nil];
         }
     }];
@@ -71,7 +77,9 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
     [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self];
     [NSNotificationCenter.defaultCenter removeObserver:self];
     [MXAssessmentMode.shared invalidate];
-    self.hidingActive = NO;
+    self.restrictionActive = NO;
+    // Unlike the restriction, permissions outlive the process.
+    [self applyPermissionHiding:[NSSet set]];
 }
 
 - (void)dealloc {
@@ -208,6 +216,31 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
     return [self.store isSystemItemHidden:rawValue];
 }
 
+- (BOOL)isHidingActive {
+    return self.restrictionActive || self.permissionActive;
+}
+
+- (NSError *)lastError {
+    return self.restrictionError ?: self.permissionError;
+}
+
+/// Makes exactly `bundleIdentifiers` hidden through their menu bar permission.
+/// An empty set turns back on everything Mixologist turned off, which is how
+/// revealing, Show All, switching method and quitting restore apps.
+- (void)applyPermissionHiding:(NSSet<NSString *> *)bundleIdentifiers {
+    if (!self.permissions) {
+        return;
+    }
+    NSError *error = nil;
+    if ([self.permissions turnOffExactly:bundleIdentifiers error:&error]) {
+        self.permissionError = nil;
+        self.permissionActive = bundleIdentifiers.count > 0;
+    } else {
+        self.permissionError = error;
+        self.permissionActive = NO;
+    }
+}
+
 - (NSUInteger)hiddenCount {
     return self.store.hiddenBundleIdentifiers.count + self.store.hiddenSystemItems.count;
 }
@@ -223,7 +256,8 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
     self.revealTimer = nil;
     if (revealing) {
         [MXAssessmentMode.shared invalidate];
-        self.hidingActive = NO;
+        self.restrictionActive = NO;
+        [self applyPermissionHiding:[NSSet set]];
         self.lastAppliedSignature = @"";
         [self notifyVisibilityChanged];
     } else {
@@ -269,6 +303,18 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
     self.privateAPIAvailable = MXAssessmentMode.shared.isAvailable;
 
     NSSet<NSString *> *hidden = self.store.hiddenBundleIdentifiers;
+    NSSet<NSString *> *byPermission = [NSSet set];
+    if ([self.store.hidingMethod isEqualToString:MXHidingMethodPermission] && self.permissions.isAvailable) {
+        byPermission = [MXVisibilityPlan bundlesHiddenByPermissionAmong:hidden
+                                                    ownBundleIdentifier:NSBundle.mainBundle.bundleIdentifier];
+    }
+    // Both sides run every time, so revealing, Show All and switching method
+    // undo whichever one is no longer wanted.
+    [self applyPermissionHiding:self.revealing ? [NSSet set] : byPermission];
+    NSMutableSet<NSString *> *byRestriction = [hidden mutableCopy];
+    [byRestriction minusSet:byPermission];
+    hidden = byRestriction;
+
     MXVisibilityPlan *plan = [MXVisibilityPlan planWithScannedBundleIdentifiers:
                                   [NSSet setWithArray:self.lastScan.thirdPartyBundleIdentifiers]
                                              runningBundleIdentifiers:
@@ -279,27 +325,27 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 
     if (!plan.shouldRestrict || self.revealing) {
         [MXAssessmentMode.shared invalidate];
-        self.hidingActive = NO;
+        self.restrictionActive = NO;
         self.lastAppliedSignature = @"";
         if (!plan.shouldRestrict) {
-            self.lastError = nil;
+            self.restrictionError = nil;
         }
         [self notifyVisibilityChanged];
         return;
     }
 
     if (!self.privateAPIAvailable) {
-        self.lastError = [NSError errorWithDomain:@"dev.mixologist.assessment"
+        self.restrictionError = [NSError errorWithDomain:@"dev.mixologist.assessment"
                                             code:10
                                         userInfo:@{NSLocalizedDescriptionKey:
                                                        MXAssessmentMode.shared.unavailableReason ?:
                                                            @"The menu bar visibility API is unavailable on this Mac."}];
-        self.hidingActive = NO;
+        self.restrictionActive = NO;
         [self notifyVisibilityChanged];
         return;
     }
 
-    if (!force && self.hidingActive && [plan.signature isEqualToString:self.lastAppliedSignature]) {
+    if (!force && self.restrictionActive && [plan.signature isEqualToString:self.lastAppliedSignature]) {
         return;
     }
 
@@ -314,21 +360,21 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
             return;
         }
         if (error) {
-            self.hidingActive = NO;
-            self.lastError = error;
+            self.restrictionActive = NO;
+            self.restrictionError = error;
             self.lastAppliedSignature = @"";
         } else {
-            self.hidingActive = YES;
-            self.lastError = nil;
+            self.restrictionActive = YES;
+            self.restrictionError = nil;
         }
         [self notifyVisibilityChanged];
     }];
     if (started) {
         // The activation is asynchronous; reflect intent immediately so the UI
         // does not flicker between states while the XPC round trip completes.
-        self.hidingActive = YES;
+        self.restrictionActive = YES;
     } else {
-        self.hidingActive = NO;
+        self.restrictionActive = NO;
     }
     [self notifyVisibilityChanged];
 }
@@ -349,7 +395,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
     if (!hiddenCount) {
         return @"Nothing is hidden. Turn apps off in Menu Bar Items to hide them.";
     }
-    if (self.hidingActive) {
+    if (self.isHidingActive) {
         return [NSString stringWithFormat:@"Hiding %lu item%@. %lu apps / %lu items discovered.",
                 (unsigned long)hiddenCount, hiddenCount == 1 ? @"" : @"s",
                 (unsigned long)appCount, (unsigned long)itemCount];

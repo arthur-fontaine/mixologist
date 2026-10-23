@@ -297,6 +297,17 @@ observe the menu bar.
     `screenMirroring` for 7 and `primaryBentoBox` for 8, and leaving out 8 (not 7)
     hides Control Center. Earlier revisions of this document had them swapped.
 
+12. **Allow in the Menu Bar approvals** — flipping an app's `isAllowed` in
+    `group.com.apple.controlcenter`'s `trackedApplications` hides and restores
+    its status item live, leaving Control Center modules alone, but only when
+    written through cfprefsd's container source
+    (`_CFPreferencesSetValueWithContainer`). Writing the same key with the
+    plist's path as the domain updated the file on disk while the item stayed on
+    screen. A log capture of a System Settings toggle showed the write landing in
+    `CFPDContainerSource`, MenuBarAgent reacting about 0.7 s later by waking the
+    app's process to rebuild its item, and no distributed notification. That one
+    toggle also pruned 17 stale entries from the list.
+
 MenuBarAgent logs the restriction lifecycle:
 
 ```text

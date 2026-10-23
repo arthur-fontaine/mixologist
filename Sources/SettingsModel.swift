@@ -76,6 +76,9 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var resettingAccessibility = false
     @Published private(set) var loginItemStatus: SMAppService.Status = .notRegistered
     @Published var loginItemError: String?
+    @Published private(set) var hidingMethod: MXHidingMethod = .restriction
+    @Published private(set) var hidesAppleItems = false
+    @Published private(set) var permissionMethodAvailable = true
     @Published private(set) var settingsFileIssues: [String] = []
     @Published private(set) var settingsFileUsable = true
 
@@ -121,8 +124,19 @@ final class SettingsModel: ObservableObject {
             Self.moduleRows(scan: scan, hidden: hiddenSystemItems)
             + Self.appRows(scan: scan, hidden: hiddenBundles, apple: true)
         loginItemStatus = SMAppService.mainApp.status
+        hidingMethod = controller.store.hidingMethod
+        hidesAppleItems =
+            !controller.store.hiddenSystemItems.isEmpty
+            || controller.store.hiddenBundleIdentifiers.contains { $0.hasPrefix("com.apple.") }
+        permissionMethodAvailable = MXMenuBarPermissions.shared.isAvailable
         settingsFileIssues = controller.store.fileIssues
         settingsFileUsable = controller.store.fileIsUsable
+    }
+
+    func setHidingMethod(_ method: MXHidingMethod) {
+        controller.store.hidingMethod = method
+        controller.reapply()
+        reload()
     }
 
     var settingsFilePath: String {

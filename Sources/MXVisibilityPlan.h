@@ -25,6 +25,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// `MBSystemItemIdentifier` raw value, or nil for items the API cannot address.
 + (nullable NSNumber *)systemItemRawValueForItemIdentifier:(NSString *)identifier;
 
+/// The hidden apps the menu bar permission method can handle: everything but
+/// Apple's own bundles (absent from Control Center's approval list) and
+/// Mixologist itself. The rest still needs the restriction.
++ (NSSet<NSString *> *)bundlesHiddenByPermissionAmong:(NSSet<NSString *> *)hiddenBundleIdentifiers
+                                  ownBundleIdentifier:(nullable NSString *)ownBundleIdentifier;
+
 /// Names used for Apple modules in settings.json (`clock`, `wifi`, `controlCenter`, …).
 + (nullable NSString *)nameForSystemItemRawValue:(NSInteger)rawValue;
 + (nullable NSNumber *)systemItemRawValueForName:(NSString *)name;

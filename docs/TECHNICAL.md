@@ -20,6 +20,7 @@ comes along. No Xcode project is involved.
 | `Sources/MXVisibilityController.{h,m}` | Scan scheduling, reveal lease, assertion lifecycle, workspace observers |
 | `Sources/MXPrivateAPI.{h,m}` | Defensive `dlopen` wrapper around `MenuBarClientCore` |
 | `Sources/MXSettingsStore.{h,m}` | `~/.config/mixologist/settings.json`: parsing, saving, live reload |
+| `Sources/MXMenuBarPermissions.{h,m}` | Menu Bar Permission hiding method: approval reconciliation and journal |
 | `Sources/MXPermissions.{h,m}` | Live Accessibility trust tracking, TCC reset, relaunch |
 | `Sources/MXHotKey.{h,m}` | Carbon system-wide hotkey |
 | `Sources/SettingsWindowController.swift` | Settings window chrome, exposed to Objective-C as `MXSettingsWindowController` |
@@ -132,6 +133,47 @@ cannot be matched by any string; it is hidden along with the selection. This is 
 property of the private API, not of the scanner. The same reason explains why an
 ad-hoc-signed build's own status item may disappear while hiding is active, which
 is why the hotkey and settings window are independent control paths.
+
+## Menu Bar Permission method
+
+The second hiding method turns off an app's "Allow in the Menu Bar" approval
+instead of restricting the menu bar. The approvals live in Control Center's app
+group as `trackedApplications`: a binary plist holding Swift's encoding of
+`[TrackedApplicationLocation: TrackedApplication]`, a flat
+`[location, record, location, record, …]` array whose records carry `isAllowed`.
+
+MenuBarAgent observes cfprefsd's *container* source for that group, which is
+what System Settings writes. Writing the same plist as a path domain changes the
+file but never reaches MenuBarAgent, so `MXMenuBarPermissions` uses
+`_CFPreferences{Copy,Set,Synchronize}ValueWithContainer`, looked up with `dlsym`
+so a missing symbol makes the method unavailable rather than crashing.
+
+Each apply reads the list fresh (System Settings rewrites and prunes it) and
+runs `MXPermissionReconciliation`, a pure function covered by `--self-test`:
+
+- a hidden app that is allowed is turned off and journaled;
+- a journaled app that is no longer hidden is turned back on;
+- an app turned off but not journaled was turned off by the user and is never
+  touched;
+- journal entries whose app left the list are dropped.
+
+The journal (`menuBarPermissionJournal` in `NSUserDefaults`) is synced to disk,
+including the apps about to be turned off, before the approvals are written, so
+a crash in between never leaves an unknown app turned off. Writes happen only
+when something changes.
+
+`applyVisibilityIfNeededForce:` always drives both methods: the permission
+target is the hidden third-party apps when the method is `permission` and
+nothing is revealed, otherwise empty; the restriction plan receives the rest
+(Apple bundles and modules). With only third-party apps hidden the plan does not
+restrict, which is what keeps Now Playing and Focus visible. An empty target is
+how revealing, Show All, switching back to the restriction and quitting restore
+apps. Because approvals outlive the process, SIGTERM, SIGINT and SIGHUP are
+routed through `-[NSApp terminate:]` so `applicationWillTerminate:` restores
+them; after a crash the next launch reconciles, and
+`--restore-menu-bar-permissions` turns everything Mixologist journaled back on
+without the GUI. A hidden app launched for the first time may show briefly until
+the next scan reapplies.
 
 ## Settings file
 

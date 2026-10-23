@@ -1,5 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #import "MXAppDelegate.h"
+#import "MXMenuBarPermissions.h"
 #import "MXMenuBarScanner.h"
 #import "MXPrivateAPI.h"
 #import "MXVisibilityController.h"
@@ -207,6 +208,18 @@ static int MXRunHide(NSArray<NSString *> *arguments) {
     return activationError ? 5 : 0;
 }
 
+static int MXRunRestorePermissions(void) {
+    NSSet *journal = MXMenuBarPermissions.shared.journal;
+    NSError *error = nil;
+    if (![MXMenuBarPermissions.shared turnOffExactly:[NSSet set] error:&error]) {
+        fprintf(stderr, "Could not restore: %s\n", error.localizedDescription.UTF8String);
+        return 1;
+    }
+    printf("Turned %lu app(s) back on: %s\n", (unsigned long)journal.count,
+           [[journal.allObjects sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@", "].UTF8String);
+    return 0;
+}
+
 static BOOL MXCheck(BOOL condition, NSString *message) {
     printf("%s %s\n", condition ? "PASS" : "FAIL", message.UTF8String);
     return condition;
@@ -266,13 +279,66 @@ static int MXRunSelfTest(void) {
                   [MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.example.item"] == nil,
                   @"Apple module identifiers map to raw values");
 
+    // Menu bar permission method.
+    NSSet *mixed = [NSSet setWithArray:@[@"com.a", @"com.apple.campo", @"dev.mixologist.Mixologist"]];
+    NSSet *byPermission = [MXVisibilityPlan bundlesHiddenByPermissionAmong:mixed ownBundleIdentifier:@"dev.mixologist.Mixologist"];
+    ok &= MXCheck([byPermission isEqualToSet:[NSSet setWithObject:@"com.a"]],
+                  @"Apple bundles and Mixologist itself stay with the restriction");
+    MXVisibilityPlan *permissionOnly = [MXVisibilityPlan planWithScannedBundleIdentifiers:scanned
+                                                                 runningBundleIdentifiers:running
+                                                                       hiddenBundleIdentifiers:[NSSet set]
+                                                                             hiddenSystemItems:[NSSet set]
+                                                                              ownBundleIdentifier:nil];
+    ok &= MXCheck(!permissionOnly.shouldRestrict,
+                  @"no restriction when only permission-handled apps are hidden (Now Playing stays)");
+
+    NSDictionary *(^record)(NSString *, BOOL) = ^NSDictionary *(NSString *bundleID, BOOL allowed) {
+        NSDictionary *location = @{@"bundle": @{@"_0": bundleID}};
+        return @{@"location": location, @"menuItemLocations": @[location], @"isAllowed": @(allowed)};
+    };
+    NSArray *tracked = @[
+        @{@"bundle": @{@"_0": @"com.hide"}}, record(@"com.hide", YES),
+        @{@"bundle": @{@"_0": @"com.restore"}}, record(@"com.restore", NO),
+        @{@"bundle": @{@"_0": @"com.user-off"}}, record(@"com.user-off", NO),
+        @{@"bundle": @{@"_0": @"com.visible"}}, record(@"com.visible", YES),
+    ];
+    MXPermissionReconciliation *step = [MXPermissionReconciliation reconcileEntries:tracked
+                                                                            journal:[NSSet setWithArray:@[@"com.restore", @"com.gone"]]
+                                                                             target:[NSSet setWithArray:@[@"com.hide", @"com.user-off"]]];
+    BOOL (^allowedIn)(NSArray *, NSString *) = ^BOOL(NSArray *entries, NSString *bundleID) {
+        for (NSUInteger i = 1; i < entries.count; i += 2) {
+            if ([entries[i][@"location"][@"bundle"][@"_0"] isEqual:bundleID]) {
+                return [entries[i][@"isAllowed"] boolValue];
+            }
+        }
+        return YES;
+    };
+    ok &= MXCheck(!allowedIn(step.entries, @"com.hide") && [step.journal containsObject:@"com.hide"],
+                  @"a hidden app is turned off and journaled");
+    ok &= MXCheck(allowedIn(step.entries, @"com.restore") && ![step.journal containsObject:@"com.restore"],
+                  @"an app Mixologist turned off comes back once no longer hidden");
+    ok &= MXCheck(!allowedIn(step.entries, @"com.user-off") && ![step.journal containsObject:@"com.user-off"],
+                  @"an app the user turned off is never journaled or restored");
+    ok &= MXCheck(allowedIn(step.entries, @"com.visible"), @"other apps are left alone");
+    ok &= MXCheck(![step.journal containsObject:@"com.gone"], @"journal entries for pruned apps are dropped");
+    ok &= MXCheck(step.entries.count == tracked.count && step.hasChanges, @"the list keeps its shape");
+    MXPermissionReconciliation *settled = [MXPermissionReconciliation reconcileEntries:step.entries
+                                                                               journal:step.journal
+                                                                                target:[NSSet setWithArray:@[@"com.hide", @"com.user-off"]]];
+    ok &= MXCheck(!settled.hasChanges, @"reapplying the same target writes nothing");
+    MXPermissionReconciliation *released = [MXPermissionReconciliation reconcileEntries:step.entries
+                                                                                journal:step.journal
+                                                                                 target:[NSSet set]];
+    ok &= MXCheck(allowedIn(released.entries, @"com.hide") && !allowedIn(released.entries, @"com.user-off") &&
+                  released.journal.count == 0, @"an empty target restores only Mixologist's own changes");
+
     // Regression: the custom -setRevealing: used to assign self.revealing and
     // recurse until the stack overflowed, crashing on every Reveal click.
     // A throwaway file: the real settings.json must never be touched by tests.
     NSURL *testFile = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
         URLByAppendingPathComponent:[NSString stringWithFormat:@"mixologist-test-%@.json", NSUUID.UUID.UUIDString]];
     MXSettingsStore *store = [[MXSettingsStore alloc] initWithFileURL:testFile];
-    MXVisibilityController *controller = [[MXVisibilityController alloc] initWithStore:store];
+    MXVisibilityController *controller = [[MXVisibilityController alloc] initWithStore:store permissions:nil];
     [controller setRevealing:YES];
     ok &= MXCheck(controller.isRevealing, @"revealing state can be enabled");
     [controller setRevealing:NO];
@@ -319,6 +385,9 @@ int main(int argc, const char *argv[]) {
         }
         if ([arguments containsObject:@"--self-test"]) {
             return MXRunSelfTest();
+        }
+        if ([arguments containsObject:@"--restore-menu-bar-permissions"]) {
+            return MXRunRestorePermissions();
         }
         if ([arguments containsObject:@"--hide"]) {
             return MXRunHide(arguments);

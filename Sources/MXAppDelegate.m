@@ -16,6 +16,7 @@
 @property (nonatomic, strong) NSMenu *statusMenu;
 @property (nonatomic, strong, nullable) NSMenuItem *grantSeparatorItem;
 @property (nonatomic) BOOL didShowSettings;
+@property (nonatomic, strong) NSMutableArray<dispatch_source_t> *signalSources;
 @end
 
 static NSString *const kMXShowSettingsNotification = @"dev.mixologist.Mixologist.showSettings";
@@ -51,6 +52,7 @@ static NSString *const kMXShowSettingsNotification = @"dev.mixologist.Mixologist
                                                         object:nil
                                             suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately];
     [MXPermissions.shared startWatching];
+    [self installTerminationSignalHandlers];
     [self installMainMenu];
 
     self.visibilityController = [[MXVisibilityController alloc] init];
@@ -91,6 +93,24 @@ static NSString *const kMXShowSettingsNotification = @"dev.mixologist.Mixologist
             [self showSettings:nil];
         }
     }];
+}
+
+/// `pkill`, `kill` and logout scripts send signals that would end the process
+/// without `applicationWillTerminate:`. The restriction dies with the process,
+/// but menu bar permissions do not, so route them through a normal quit.
+- (void)installTerminationSignalHandlers {
+    self.signalSources = [NSMutableArray array];
+    for (NSNumber *number in @[@(SIGTERM), @(SIGINT), @(SIGHUP)]) {
+        int signalNumber = number.intValue;
+        signal(signalNumber, SIG_IGN);
+        dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, (uintptr_t)signalNumber, 0,
+                                                          dispatch_get_main_queue());
+        dispatch_source_set_event_handler(source, ^{
+            [NSApp terminate:nil];
+        });
+        dispatch_resume(source);
+        [self.signalSources addObject:source];
+    }
 }
 
 /// Accessory apps get no main menu by default, which leaves ⌘W, ⌘Q and the

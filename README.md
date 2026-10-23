@@ -104,6 +104,28 @@ values.
 A missing key takes its default. The first launch of this version moves settings
 stored by older versions into the file.
 
+## Hiding methods
+
+Settings → General → Hiding method (or `hidingMethod` in `settings.json`):
+
+| | Restriction (default) | Menu Bar Permission |
+| --- | --- | --- |
+| How | macOS's menu bar visibility restriction, with an allow list | Turns off each hidden app's **Allow in the Menu Bar** switch (System Settings › Menu Bar) |
+| Now Playing, Focus, other added Control Center modules | Hidden while anything is hidden | Stay visible |
+| Reveal | Instant | Takes a moment: each app redraws its item |
+| If Mixologist crashes | Everything comes back immediately | Hidden apps stay hidden until Mixologist opens again |
+
+Apple's own items (Clock, Wi-Fi, Spotlight, …) are not on the Allow in the Menu
+Bar list, so they always use the restriction; hiding one of them hides Now
+Playing and Focus again, whatever the method. Mixologist records every app it
+turns off and only ever turns those back on; apps you switched off yourself in
+System Settings are left alone. Quitting turns them all back on. After a crash,
+reopen Mixologist, or run:
+
+```sh
+/Applications/Mixologist.app/Contents/MacOS/Mixologist --restore-menu-bar-permissions
+```
+
 ## Usage
 
 1. Launch Mixologist.
@@ -141,10 +163,11 @@ extension points are in [`docs/TECHNICAL.md`](docs/TECHNICAL.md).
 
 - **Private API.** `MenuBarClientCore` is not public. Apple can change or remove it
   in any macOS update. This app is therefore not App Store material.
-- **Now Playing, Focus and similar modules.** While anything is hidden, macOS
-  also hides the Control Center modules you added to the menu bar beyond the nine
-  basic ones (Now Playing, Focus, …). The restriction API cannot name them, so no
-  allow list keeps them; they come back whenever you reveal.
+- **Now Playing, Focus and similar modules.** The restriction also hides the
+  Control Center modules you added to the menu bar beyond the nine basic ones
+  (Now Playing, Focus, …): the restriction API cannot name them. The Menu Bar
+  Permission method avoids this for third-party apps; see
+  [Hiding methods](#hiding-methods).
 - **Per-app granularity.** The system restriction works per bundle identifier.
   Hiding one item from an app that exposes several items hides all of them.
 - **Unattributed items.** Some status items cannot be attributed to a bundle

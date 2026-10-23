@@ -117,6 +117,8 @@ private struct GeneralPane: View {
                 }
             }
 
+            HidingMethodSection(model: model)
+
             PermissionsSection(model: model)
 
             SettingsFileSection(model: model)
@@ -169,6 +171,40 @@ private struct GeneralPane: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+private struct HidingMethodSection: View {
+    @ObservedObject var model: SettingsModel
+
+    private var method: Binding<MXHidingMethod> {
+        Binding(get: { model.hidingMethod }, set: { model.setHidingMethod($0) })
+    }
+
+    var body: some View {
+        Section {
+            Picker(selection: method) {
+                Text("Restriction").tag(MXHidingMethod.restriction)
+                Text("Menu Bar Permission").tag(MXHidingMethod.permission)
+                    .disabled(!model.permissionMethodAvailable)
+            } label: {
+                Text("Hiding method")
+                Text(
+                    model.hidingMethod == .permission
+                        ? "Turns off each hidden app’s Allow in the Menu Bar setting. Now Playing and Focus stay visible; revealing takes a moment, and apps stay hidden if Mixologist crashes until it opens again."
+                        : "Uses macOS’s menu bar restriction. Instant, and everything comes back if Mixologist stops, but it also hides Control Center modules such as Now Playing and Focus."
+                )
+            }
+            if model.hidingMethod == .permission && model.hidesAppleItems {
+                SettingsNotice(
+                    title: "Apple items still use the restriction",
+                    message:
+                        "Clock, Wi‑Fi, Spotlight and other Apple items can only be hidden by the restriction, so Now Playing and Focus hide while one of them is hidden."
+                )
+            }
+        } header: {
+            Text("Hiding")
+        }
     }
 }
 
@@ -344,7 +380,7 @@ private struct MenuBarItemsPane: View {
                     Text("Apple")
                 } footer: {
                     Text(
-                        "Hiding an Apple item only removes its icon; the feature keeps working. While anything is hidden, macOS also hides Control Center modules such as Now Playing and Focus: its restriction has no way to keep them. Click the dot or open Control Center to reach them."
+                        "Hiding an Apple item only removes its icon; the feature keeps working. Apple items are hidden with macOS’s restriction, which also hides Control Center modules such as Now Playing and Focus while it is active."
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)

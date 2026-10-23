@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "MXMenuBarPermissions.h"
 #import "MXMenuBarScanner.h"
 #import "MXSettingsStore.h"
 #import "MXVisibilityPlan.h"
@@ -19,7 +20,10 @@ extern NSNotificationName const MXScanDidChangeNotification;
 @property (nonatomic, strong, readonly, nullable) NSError *lastError;
 
 - (instancetype)init;
-- (instancetype)initWithStore:(MXSettingsStore *)store NS_DESIGNATED_INITIALIZER;
+/// `permissions` is nil in the self-test so it never touches the user's
+/// menu bar permissions.
+- (instancetype)initWithStore:(MXSettingsStore *)store
+                  permissions:(nullable MXMenuBarPermissions *)permissions NS_DESIGNATED_INITIALIZER;
 
 - (void)start;
 - (void)stop;
