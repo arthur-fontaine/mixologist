@@ -1,4 +1,5 @@
 #import "MXVisibilityController.h"
+#import "MXPermissions.h"
 #import "MXPrivateAPI.h"
 
 NSNotificationName const MXVisibilityDidChangeNotification = @"MXVisibilityDidChangeNotification";
@@ -92,6 +93,14 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
                                           selector:@selector(applicationDidBecomeActive:)
                                               name:NSApplicationDidBecomeActiveNotification
                                             object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                          selector:@selector(accessibilityTrustDidChange:)
+                                              name:MXAccessibilityTrustDidChangeNotification
+                                            object:nil];
+}
+
+- (void)accessibilityTrustDidChange:(NSNotification *)notification {
+    [self refreshScanWithCompletion:nil];
 }
 
 - (void)workspaceDidChange:(NSNotification *)notification {

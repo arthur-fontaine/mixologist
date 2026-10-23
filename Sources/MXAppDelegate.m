@@ -2,6 +2,7 @@
 #import <Carbon/Carbon.h>
 #import "MXHotKey.h"
 #import "MXMenuBarScanner.h"
+#import "MXPermissions.h"
 #import "MXSettingsWindowController.h"
 #import "MXVisibilityController.h"
 
@@ -11,12 +12,45 @@
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong, nullable) MXHotKey *hotKey;
 @property (nonatomic, strong, nullable) NSMenuItem *revealMenuItem;
+@property (nonatomic, strong, nullable) NSMenuItem *grantMenuItem;
+@property (nonatomic, strong, nullable) NSMenuItem *grantSeparatorItem;
 @property (nonatomic) BOOL didShowSettings;
 @end
 
+static NSString *const kMXShowSettingsNotification = @"dev.mixologist.Mixologist.showSettings";
+
 @implementation MXAppDelegate
 
+/// Two instances would install two restrictions whose allow lists intersect,
+/// hiding items neither of them meant to hide. A second launch (from Finder,
+/// another build folder, or a login item) hands over to the first one.
+- (BOOL)handOffToRunningInstance {
+    NSString *bundleIdentifier = NSBundle.mainBundle.bundleIdentifier;
+    pid_t ownPID = NSProcessInfo.processInfo.processIdentifier;
+    for (NSRunningApplication *app in [NSRunningApplication runningApplicationsWithBundleIdentifier:bundleIdentifier ?: @""]) {
+        if (app.processIdentifier != ownPID && !app.isTerminated) {
+            [NSDistributedNotificationCenter.defaultCenter postNotificationName:kMXShowSettingsNotification
+                                                                         object:nil
+                                                                       userInfo:nil
+                                                                deliverImmediately:YES];
+            return YES;
+        }
+    }
+    return NO;
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    if ([self handOffToRunningInstance]) {
+        [NSApp terminate:nil];
+        return;
+    }
+    [NSDistributedNotificationCenter.defaultCenter addObserver:self
+                                                      selector:@selector(showSettings:)
+                                                          name:kMXShowSettingsNotification
+                                                        object:nil
+                                            suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately];
+    [MXPermissions.shared startWatching];
+
     self.visibilityController = [[MXVisibilityController alloc] init];
     self.settingsWindowController = [[MXSettingsWindowController alloc] initWithController:self.visibilityController];
 
@@ -31,6 +65,10 @@
                                            selector:@selector(visibilityDidChange:)
                                                name:MXScanDidChangeNotification
                                              object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(accessibilityTrustDidChange:)
+                                               name:MXAccessibilityTrustDidChangeNotification
+                                             object:nil];
 
     [self.visibilityController start];
     [self updateMenuState];
@@ -42,7 +80,7 @@
             return;
         }
         [self updateMenuState];
-        if (!result.isAccessibilityTrusted && !self.didShowSettings) {
+        if (!MXPermissions.shared.isAccessibilityTrusted && !self.didShowSettings) {
             self.didShowSettings = YES;
             [self showSettings:nil];
         } else if (!self.visibilityController.store.hasShownWelcome) {
@@ -77,6 +115,16 @@
     button.image = image;
 
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Mixologist"];
+    self.grantMenuItem = [[NSMenuItem alloc] initWithTitle:@"Grant Accessibility Access…"
+                                                    action:@selector(grantAccessibility:)
+                                             keyEquivalent:@""];
+    self.grantMenuItem.target = self;
+    self.grantMenuItem.image = [NSImage imageWithSystemSymbolName:@"exclamationmark.triangle.fill"
+                                         accessibilityDescription:nil];
+    [menu addItem:self.grantMenuItem];
+    self.grantSeparatorItem = [NSMenuItem separatorItem];
+    [menu addItem:self.grantSeparatorItem];
+
     self.revealMenuItem = [[NSMenuItem alloc] initWithTitle:@"Reveal Hidden Items"
                                                      action:@selector(toggleReveal:)
                                               keyEquivalent:@""];
@@ -111,6 +159,12 @@
 
     [menu addItem:[NSMenuItem separatorItem]];
 
+    NSMenuItem *relaunch = [[NSMenuItem alloc] initWithTitle:@"Relaunch Mixologist"
+                                                      action:@selector(relaunch:)
+                                               keyEquivalent:@""];
+    relaunch.target = self;
+    [menu addItem:relaunch];
+
     NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:@"Quit Mixologist"
                                                   action:@selector(terminate:)
                                            keyEquivalent:@"q"];
@@ -133,7 +187,18 @@
     [self updateMenuState];
 }
 
+- (void)accessibilityTrustDidChange:(NSNotification *)notification {
+    [self updateMenuState];
+    // Bring the window back from System Settings so the grant visibly lands.
+    if (MXPermissions.shared.isAccessibilityTrusted && self.settingsWindowController.window.isVisible) {
+        [self showSettings:nil];
+    }
+}
+
 - (void)updateMenuState {
+    BOOL trusted = MXPermissions.shared.isAccessibilityTrusted;
+    self.grantMenuItem.hidden = trusted;
+    self.grantSeparatorItem.hidden = trusted;
     BOOL revealing = self.visibilityController.isRevealing;
     self.revealMenuItem.title = revealing ? @"Hide Revealed Items" : @"Reveal Hidden Items (15 s)";
     self.revealMenuItem.state = revealing ? NSControlStateValueOn : NSControlStateValueOff;
@@ -156,6 +221,14 @@
     [NSApp activateIgnoringOtherApps:YES];
 }
 
+- (void)grantAccessibility:(id)sender {
+    [MXPermissions.shared requestAccessibility];
+}
+
+- (void)relaunch:(id)sender {
+    [MXPermissions relaunch];
+}
+
 - (void)rescan:(id)sender {
     [self.visibilityController refreshScanWithCompletion:^(MXScanResult *result) {
         [self updateMenuState];
@@ -173,6 +246,7 @@
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
+    [NSDistributedNotificationCenter.defaultCenter removeObserver:self];
     [self.hotKey unregister];
     [self.visibilityController stop];
 }

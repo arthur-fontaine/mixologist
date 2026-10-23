@@ -1,5 +1,6 @@
 #import "MXSettingsWindowController.h"
 #import "MXMenuBarScanner.h"
+#import "MXPermissions.h"
 #import <ServiceManagement/ServiceManagement.h>
 
 @interface MXSettingsWindowController ()
@@ -379,9 +380,6 @@
     [self.controller refreshScanWithCompletion:^(MXScanResult *result) {
         __strong typeof(weakSelf) self = weakSelf;
         [self reloadData];
-        if (!result.isAccessibilityTrusted) {
-            [self grantAccessibility:nil];
-        }
     }];
 }
 
@@ -421,11 +419,7 @@
 }
 
 - (void)grantAccessibility:(id)sender {
-    [MXMenuBarScanner accessibilityTrustedWithPrompt:YES];
-    NSURL *url = [NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"];
-    if (url) {
-        [NSWorkspace.sharedWorkspace openURL:url];
-    }
+    [MXPermissions.shared requestAccessibility];
 }
 
 - (void)toggleLogin:(NSButton *)sender {
