@@ -375,14 +375,13 @@ private struct AboutPane: View {
             }
 
             Section {
-                LabeledContent {
-                    HStack {
-                        Button("Relaunch") { model.relaunch() }
-                        Button("Quit") { NSApp.terminate(nil) }
-                    }
-                } label: {
-                    Text("Quit Mixologist")
-                    Text("Every menu bar item comes back when Mixologist quits.")
+                // Not `LabeledContent`: it would name both buttons after the row title.
+                SettingsRow(
+                    title: "Quit Mixologist",
+                    subtitle: "Every menu bar item comes back when Mixologist quits."
+                ) {
+                    Button("Relaunch") { model.relaunch() }
+                    Button("Quit") { NSApp.terminate(nil) }
                 }
             }
         }
