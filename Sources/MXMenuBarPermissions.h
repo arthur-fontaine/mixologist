@@ -31,6 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Apps Mixologist has turned off and not yet turned back on.
 @property (nonatomic, readonly, copy) NSSet<NSString *> *journal;
 
+/// Control Center's `trackedApplications`, read fresh. Read-only.
+- (nullable NSArray *)trackedEntries:(NSError *_Nullable *_Nullable)error;
+
 /// Makes `bundleIdentifiers` exactly the set of apps Mixologist keeps turned
 /// off: turns them off, and turns back on any it turned off before that is no
 /// longer listed. Writes only when something changes.

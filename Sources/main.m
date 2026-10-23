@@ -38,6 +38,16 @@ static int MXRunDiagnose(void) {
         printf(" (%s)", (assessment.unavailableReason ?: @"unknown").UTF8String);
     }
     printf("\n");
+    NSError *permissionsError = nil;
+    NSArray *tracked = [MXMenuBarPermissions.shared trackedEntries:&permissionsError];
+    printf("Menu bar permissions: %s", tracked ? "readable" : "unavailable");
+    if (tracked) {
+        printf(" (%lu apps tracked, %lu journaled)", (unsigned long)tracked.count / 2,
+               (unsigned long)MXMenuBarPermissions.shared.journal.count);
+    } else {
+        printf(" (%s)", permissionsError.localizedDescription.UTF8String);
+    }
+    printf("\n");
 
     MXScanResult *scan = [[MXMenuBarScanner alloc] scan];
     printf("Scan: %.2f s, %lu apps with items, %lu third-party bundle IDs, %lu system item IDs\n",

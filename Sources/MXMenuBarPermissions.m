@@ -98,10 +98,32 @@ static NSString *MXRecordBundleIdentifier(id record) {
     return _copy && _set && _synchronize;
 }
 
-- (CFStringRef)container {
-    NSString *path = [NSFileManager.defaultManager.homeDirectoryForCurrentUser
+/// An NSString kept alive by the caller; bridging it to CFStringRef inside a
+/// method would hand CoreFoundation a string ARC has already released.
+- (NSString *)containerPath {
+    return [NSFileManager.defaultManager.homeDirectoryForCurrentUser
         URLByAppendingPathComponent:@"Library/Group Containers/group.com.apple.controlcenter"].path;
-    return (__bridge CFStringRef)path;
+}
+
+- (NSArray *)trackedEntries:(NSError **)error {
+    if (!self.isAvailable) {
+        [self fail:@"This version of macOS doesn't let Mixologist change menu bar permissions." error:error];
+        return nil;
+    }
+    NSString *container = self.containerPath;
+    // Always read fresh: System Settings rewrites and prunes this list itself.
+    NSData *data = CFBridgingRelease(_copy(kMXTrackedApplicationsKey, kMXAppGroup, kCFPreferencesCurrentUser,
+                                           kCFPreferencesAnyHost, (__bridge CFStringRef)container));
+    if (![data isKindOfClass:[NSData class]]) {
+        [self fail:@"Couldn't read the Allow in the Menu Bar settings." error:error];
+        return nil;
+    }
+    NSArray *entries = [NSPropertyListSerialization propertyListWithData:data options:0 format:NULL error:NULL];
+    if (![entries isKindOfClass:[NSArray class]] || entries.count % 2) {
+        [self fail:@"The Allow in the Menu Bar settings have an unexpected format." error:error];
+        return nil;
+    }
+    return entries;
 }
 
 - (NSSet<NSString *> *)journal {
@@ -134,19 +156,9 @@ static NSString *MXRecordBundleIdentifier(id record) {
     if (!bundleIdentifiers.count && !journal.count) {
         return YES;
     }
-    if (!self.isAvailable) {
-        return [self fail:@"This version of macOS doesn't let Mixologist change menu bar permissions." error:error];
-    }
-
-    // Always read fresh: System Settings rewrites and prunes this list itself.
-    NSData *data = CFBridgingRelease(_copy(kMXTrackedApplicationsKey, kMXAppGroup, kCFPreferencesCurrentUser,
-                                           kCFPreferencesAnyHost, self.container));
-    if (![data isKindOfClass:[NSData class]]) {
-        return [self fail:@"Couldn't read the Allow in the Menu Bar settings." error:error];
-    }
-    NSArray *entries = [NSPropertyListSerialization propertyListWithData:data options:0 format:NULL error:NULL];
-    if (![entries isKindOfClass:[NSArray class]] || entries.count % 2) {
-        return [self fail:@"The Allow in the Menu Bar settings have an unexpected format." error:error];
+    NSArray *entries = [self trackedEntries:error];
+    if (!entries) {
+        return NO;
     }
 
     MXPermissionReconciliation *result = [MXPermissionReconciliation reconcileEntries:entries
@@ -163,9 +175,10 @@ static NSString *MXRecordBundleIdentifier(id record) {
     if (!updated) {
         return [self fail:@"Couldn't encode the Allow in the Menu Bar settings." error:error];
     }
+    NSString *container = self.containerPath;
     _set(kMXTrackedApplicationsKey, (__bridge CFDataRef)updated, kMXAppGroup, kCFPreferencesCurrentUser,
-         kCFPreferencesAnyHost, self.container);
-    if (!_synchronize(kMXAppGroup, kCFPreferencesCurrentUser, kCFPreferencesAnyHost, self.container)) {
+         kCFPreferencesAnyHost, (__bridge CFStringRef)container);
+    if (!_synchronize(kMXAppGroup, kCFPreferencesCurrentUser, kCFPreferencesAnyHost, (__bridge CFStringRef)container)) {
         return [self fail:@"Couldn't save the Allow in the Menu Bar settings." error:error];
     }
     [self saveJournal:result.journal];
