@@ -12,14 +12,15 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 @property (nonatomic, readwrite, getter=isPrivateAPIAvailable) BOOL privateAPIAvailable;
 @property (nonatomic, strong, readwrite, nullable) NSError *lastError;
 @property (nonatomic, copy) NSString *lastAppliedSignature;
-@property (nonatomic) NSUInteger scanGeneration;
 @property (nonatomic) NSUInteger applyGeneration;
 @property (nonatomic, strong, nullable) NSTimer *revealTimer;
 @property (nonatomic, strong, nullable) NSTimer *periodicScanTimer;
 @property (nonatomic, strong, nullable) NSTimer *debounceTimer;
 @property (nonatomic, strong) dispatch_queue_t scanQueue;
 @property (nonatomic) BOOL scanning;
-@property (nonatomic, copy, nullable) void (^pendingScanCompletion)(MXScanResult *);
+@property (nonatomic) BOOL rescanRequested;
+@property (nonatomic) BOOL reapplyRequested;
+@property (nonatomic, strong) NSMutableArray<void (^)(MXScanResult *)> *queuedScanCompletions;
 @end
 
 @implementation MXVisibilityController
@@ -30,6 +31,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
         _store = [[MXSettingsStore alloc] init];
         _lastScan = [[MXScanResult alloc] init];
         _scanQueue = dispatch_queue_create("dev.mixologist.scan", DISPATCH_QUEUE_SERIAL);
+        _queuedScanCompletions = [NSMutableArray array];
         _privateAPIAvailable = MXAssessmentMode.shared.isAvailable;
     }
     return self;
@@ -79,6 +81,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
              NSWorkspaceDidUnhideApplicationNotification,
              NSWorkspaceScreensDidSleepNotification,
              NSWorkspaceScreensDidWakeNotification,
+             NSWorkspaceDidWakeNotification,
          ]) {
         [workspaceCenter addObserver:self
                            selector:@selector(workspaceDidChange:)
@@ -92,6 +95,14 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 }
 
 - (void)workspaceDidChange:(NSNotification *)notification {
+    NSRunningApplication *app = notification.userInfo[NSWorkspaceApplicationKey];
+    // The restriction lives in MenuBarAgent. When it restarts, our assertion is
+    // gone even though nothing about the plan changed, so the signature check
+    // alone would never re-install it.
+    if ([notification.name isEqualToString:NSWorkspaceDidLaunchApplicationNotification] &&
+        [app.bundleIdentifier isEqualToString:@"com.apple.MenuBarAgent"]) {
+        self.reapplyRequested = YES;
+    }
     [self refreshSoon];
 }
 
@@ -114,33 +125,44 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 }
 
 - (void)refreshScanWithCompletion:(void (^)(MXScanResult *))completion {
+    if (completion) {
+        [self.queuedScanCompletions addObject:[completion copy]];
+    }
     if (self.scanning) {
-        // Coalesce concurrent refreshes. The latest caller's completion wins.
-        self.pendingScanCompletion = completion;
+        // A scan already in flight may predate whatever prompted this request
+        // (an Accessibility grant, a launched app), so queue a fresh one.
+        self.rescanRequested = YES;
         return;
     }
+    [self startScan];
+}
+
+- (void)startScan {
     self.scanning = YES;
-    NSUInteger generation = ++self.scanGeneration;
+    self.rescanRequested = NO;
+    NSArray<void (^)(MXScanResult *)> *completions = [self.queuedScanCompletions copy];
+    [self.queuedScanCompletions removeAllObjects];
+
     __weak typeof(self) weakSelf = self;
     dispatch_async(self.scanQueue, ^{
         MXScanResult *result = [[MXMenuBarScanner alloc] scan];
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(weakSelf) self = weakSelf;
-            if (!self || generation != self.scanGeneration) {
+            if (!self) {
                 return;
             }
             self.scanning = NO;
             self.lastScan = result;
-            [self applyVisibilityIfNeededForce:NO];
+            BOOL force = self.reapplyRequested;
+            self.reapplyRequested = NO;
+            [self applyVisibilityIfNeededForce:force];
             [NSNotificationCenter.defaultCenter postNotificationName:MXScanDidChangeNotification
                                                               object:self];
-            void (^pending)(MXScanResult *) = self.pendingScanCompletion;
-            self.pendingScanCompletion = nil;
-            if (completion) {
+            for (void (^completion)(MXScanResult *) in completions) {
                 completion(result);
             }
-            if (pending) {
-                pending(result);
+            if (self.rescanRequested) {
+                [self startScan];
             }
         });
     });
