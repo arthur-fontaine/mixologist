@@ -1,6 +1,7 @@
 #import "MXSettingsStore.h"
 
 static NSString *const kMXHiddenBundleIdentifiersKey = @"hiddenBundleIdentifiers";
+static NSString *const kMXHiddenSystemItemsKey = @"hiddenSystemItems";
 static NSString *const kMXHasShownWelcomeKey = @"hasShownWelcome";
 static NSString *const kMXRevealForFifteenSecondsKey = @"revealForFifteenSeconds";
 
@@ -42,6 +43,36 @@ static NSString *const kMXRevealForFifteenSecondsKey = @"revealForFifteenSeconds
         [set removeObject:bundleIdentifier];
     }
     self.hiddenBundleIdentifiers = set;
+}
+
+- (NSSet<NSNumber *> *)hiddenSystemItems {
+    NSArray *stored = [NSUserDefaults.standardUserDefaults arrayForKey:kMXHiddenSystemItemsKey];
+    NSMutableSet<NSNumber *> *set = [NSMutableSet set];
+    for (id value in stored) {
+        if ([value isKindOfClass:[NSNumber class]]) {
+            [set addObject:@([value integerValue])];
+        }
+    }
+    return set;
+}
+
+- (void)setHiddenSystemItems:(NSSet<NSNumber *> *)hiddenSystemItems {
+    NSArray *array = [hiddenSystemItems.allObjects sortedArrayUsingSelector:@selector(compare:)];
+    [NSUserDefaults.standardUserDefaults setObject:array forKey:kMXHiddenSystemItemsKey];
+}
+
+- (BOOL)isSystemItemHidden:(NSInteger)rawValue {
+    return [self.hiddenSystemItems containsObject:@(rawValue)];
+}
+
+- (void)setSystemItem:(NSInteger)rawValue hidden:(BOOL)hidden {
+    NSMutableSet *set = [self.hiddenSystemItems mutableCopy];
+    if (hidden) {
+        [set addObject:@(rawValue)];
+    } else {
+        [set removeObject:@(rawValue)];
+    }
+    self.hiddenSystemItems = set;
 }
 
 - (BOOL)hasShownWelcome {

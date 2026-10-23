@@ -246,21 +246,7 @@ private struct MenuBarItemsPane: View {
                     .foregroundStyle(.secondary)
                 } else {
                     ForEach(model.apps) { app in
-                        Toggle(isOn: visibility(of: app)) {
-                            HStack(spacing: 10) {
-                                AppIconView(path: app.path)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(app.name).lineLimit(1)
-                                    Text(app.detail)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                }
-                            }
-                        }
-                        .toggleStyle(.switch)
-                        .help(app.isHidden ? "Hidden. Turn on to show its menu bar items." : "Visible")
+                        MenuBarItemRow(app: app, isVisible: visibility(of: app))
                     }
                 }
             } header: {
@@ -275,10 +261,26 @@ private struct MenuBarItemsPane: View {
                 }
             } footer: {
                 Text(
-                    "Turn an app off to hide all of its menu bar items. Apple’s own items, like Clock, Wi-Fi and Control Center, always stay visible."
+                    "Turn an app off to hide all of its menu bar items."
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            }
+
+            if !model.appleItems.isEmpty {
+                Section {
+                    ForEach(model.appleItems) { item in
+                        MenuBarItemRow(app: item, isVisible: visibility(of: item))
+                    }
+                } header: {
+                    Text("Apple")
+                } footer: {
+                    Text(
+                        "Hiding an Apple item only removes its icon; the feature keeps working. Items turned off in Control Center settings stay off."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
             }
 
             Section {
@@ -322,6 +324,35 @@ private struct MenuBarItemsPane: View {
         Binding(
             get: { !app.isHidden },
             set: { model.setVisible($0, for: app) })
+    }
+}
+
+private struct MenuBarItemRow: View {
+    let app: MenuBarApp
+    let isVisible: Binding<Bool>
+
+    var body: some View {
+        Toggle(isOn: isVisible) {
+            HStack(spacing: 10) {
+                if let symbol = app.symbol {
+                    // Otherwise the symbol's name becomes the switch's accessible label.
+                    SettingsTabIcon(systemImage: symbol, tint: .accentColor, size: SettingsMetrics.rowIcon)
+                        .accessibilityHidden(true)
+                } else {
+                    AppIconView(path: app.path)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(app.name).lineLimit(1)
+                    Text(app.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .help(app.isHidden ? "Hidden. Turn on to show it in the menu bar." : "Visible")
     }
 }
 

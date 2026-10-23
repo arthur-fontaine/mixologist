@@ -26,6 +26,10 @@ extern NSNotificationName const MXScanDidChangeNotification;
 
 - (void)setBundle:(NSString *)bundleIdentifier hidden:(BOOL)hidden;
 - (BOOL)isBundleHidden:(NSString *)bundleIdentifier;
+- (void)setSystemItem:(NSInteger)rawValue hidden:(BOOL)hidden;
+- (BOOL)isSystemItemHidden:(NSInteger)rawValue;
+/// Hidden apps plus hidden Apple modules.
+@property (nonatomic, readonly) NSUInteger hiddenCount;
 - (void)setRevealing:(BOOL)revealing;
 - (void)revealForSeconds:(NSTimeInterval)seconds;
 - (void)hideAllThirdPartyApps;

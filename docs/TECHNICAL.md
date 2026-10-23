@@ -32,13 +32,25 @@ macOS's restriction is a **whitelist**. While active, every third-party item not
 in the allow list is hidden. Therefore Mixologist computes:
 
 ```
-allowed bundles = (scanned third-party bundles ∪ all running bundle IDs)
+allowed bundles = (scanned third-party bundles ∪ all running bundle IDs
+                   ∪ {controlcenter, systemuiserver})
                   − hidden bundles
                   + Mixologist's own bundle
-                  + Apple system bundles
+                  + com.apple.MenuBarAgent
 
 allowed system items = the nine MBSystemItemIdentifier raw values, 0...8
+                       − hidden Apple modules
 ```
+
+Apple's items come in two kinds, hidden in two ways:
+
+- **Modules** drawn by MenuBarAgent (Clock, Wi-Fi, Battery, Control Center, …)
+  are hidden by leaving their raw value out of the system-item list. This works
+  even though MenuBarAgent itself stays in the bundle allow list. The scanner
+  sees them as `com.apple.menuextra.<name>` AX identifiers, which
+  `+[MXVisibilityPlan systemItemRawValueForItemIdentifier:]` maps to raw values.
+- **Apple helpers** with their own items (Spotlight under `com.apple.campo`, VPN
+  under `com.apple.systemuiserver`) are hidden by bundle, like third-party apps.
 
 Including every running bundle — not just the ones with a currently known status
 item — prevents a newly launched app from being hidden before the next scan sees
@@ -63,7 +75,7 @@ its item. `MXVisibilityPlan` is deliberately pure so this behaviour is covered b
 | 8 | `screenMirroring` | Screen Mirroring |
 
 Passing all nine preserves Apple's items and does **not** force on items the user
-has disabled in System Settings. Passing strings is a trap: the initializer
+has disabled in System Settings. Leaving one out hides only that module. Passing strings is a trap: the initializer
 coerces each element with `integerValue`, so every string becomes `0` (battery)
 and Clock, Wi-Fi, and other modules disappear.
 
@@ -138,7 +150,9 @@ Accessibility dev.mixologist.Mixologist`, followed by a fresh prompt) and
 bundle.
 
 Only one instance runs at a time: a second launch asks the first to show its
-settings and quits, since two restrictions would intersect their allow lists.
+settings and quits. With two restrictions active, an item stays visible if
+either one allows it, so a second instance silently undoes the first one's
+hiding.
 
 ## UI
 

@@ -269,6 +269,18 @@ observe the menu bar.
    wildcard or "unknown items" switch; `VisibilityRestrictionAllowList` contains
    only `systemItems` and `bundleIdentifiers`.
 
+8. **Selective system items** — with no other restriction active, leaving
+   only `2` (clock) out of the nine raw values hid the Clock and nothing else,
+   although `com.apple.MenuBarAgent`, `com.apple.controlcenter` and
+   `com.apple.systemuiserver` were all in the bundle allow list. An empty
+   system-item list with every bundle allowed hid all Apple modules but kept
+   Spotlight (`com.apple.campo`) and VPN (`com.apple.systemuiserver`); those two
+   disappear only when their bundles are left out.
+9. **Two restrictions** — while one process held a restriction that allowed the
+   Clock, a second process's restriction without it did not hide the Clock, and
+   items hidden by the first reappeared under the second's broader allow list.
+   An item is visible when any active restriction allows it.
+
 MenuBarAgent logs the restriction lifecycle:
 
 ```text

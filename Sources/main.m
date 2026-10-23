@@ -137,6 +137,7 @@ static int MXRunHide(NSArray<NSString *> *arguments) {
                                              runningBundleIdentifiers:
                                   [NSSet setWithArray:scan.runningBundleIdentifiers]
                                                    hiddenBundleIdentifiers:hidden
+                                                         hiddenSystemItems:[NSSet set]
                                                   ownBundleIdentifier:NSBundle.mainBundle.bundleIdentifier];
     printf("Accessibility: %s\n", scan.isAccessibilityTrusted ? "granted" : "not granted");
     printf("Plan: %s\n", plan.description.UTF8String);
@@ -219,6 +220,7 @@ static int MXRunSelfTest(void) {
     MXVisibilityPlan *plan = [MXVisibilityPlan planWithScannedBundleIdentifiers:scanned
                                                        runningBundleIdentifiers:running
                                                              hiddenBundleIdentifiers:hidden
+                                                                   hiddenSystemItems:[NSSet set]
                                                                     ownBundleIdentifier:@"dev.mixologist.Mixologist"];
     ok &= MXCheck(plan.shouldRestrict, @"empty allow list is not used when something is hidden");
     ok &= MXCheck([plan.allowedBundleIdentifiers containsObject:@"com.a"], @"scanned visible app is allowed");
@@ -232,6 +234,7 @@ static int MXRunSelfTest(void) {
     MXVisibilityPlan *empty = [MXVisibilityPlan planWithScannedBundleIdentifiers:scanned
                                                          runningBundleIdentifiers:running
                                                                hiddenBundleIdentifiers:[NSSet set]
+                                                                     hiddenSystemItems:[NSSet set]
                                                                       ownBundleIdentifier:@"dev.mixologist.Mixologist"];
     ok &= MXCheck(!empty.shouldRestrict, @"nothing hidden means no restriction");
     ok &= MXCheck(empty.allowedSystemItemRawValues.count == 9, @"system items are always allowed");
@@ -239,10 +242,29 @@ static int MXRunSelfTest(void) {
     MXVisibilityPlan *fallback = [MXVisibilityPlan planWithScannedBundleIdentifiers:[NSSet set]
                                                           runningBundleIdentifiers:[NSSet set]
                                                                 hiddenBundleIdentifiers:[NSSet setWithObject:@"com.hidden"]
+                                                                      hiddenSystemItems:[NSSet set]
                                                                        ownBundleIdentifier:nil];
     ok &= MXCheck(fallback.shouldRestrict, @"hidden set alone activates restriction");
     ok &= MXCheck(fallback.allowedSystemItemRawValues.count == 9, @"system items are allowed without a scan");
     ok &= MXCheck(![fallback.allowedBundleIdentifiers containsObject:@"com.hidden"], @"hidden app excluded without a scan");
+
+    MXVisibilityPlan *noClock = [MXVisibilityPlan planWithScannedBundleIdentifiers:scanned
+                                                          runningBundleIdentifiers:running
+                                                                hiddenBundleIdentifiers:[NSSet setWithObject:@"com.apple.systemuiserver"]
+                                                                      hiddenSystemItems:[NSSet setWithObject:@2]
+                                                                       ownBundleIdentifier:nil];
+    ok &= MXCheck(noClock.shouldRestrict, @"a hidden Apple module alone activates restriction");
+    ok &= MXCheck(noClock.allowedSystemItemRawValues.count == 8 &&
+                  ![noClock.allowedSystemItemRawValues containsObject:@2], @"hidden Apple module is left out");
+    ok &= MXCheck(![noClock.allowedBundleIdentifiers containsObject:@"com.apple.systemuiserver"],
+                  @"Apple bundles can be hidden");
+    ok &= MXCheck([noClock.allowedBundleIdentifiers containsObject:@"com.apple.MenuBarAgent"],
+                  @"MenuBarAgent is always allowed");
+    ok &= MXCheck([[MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.apple.menuextra.clock"] isEqual:@2] &&
+                  [[MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.apple.menuextra.wifi"] isEqual:@6] &&
+                  [[MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.apple.menuextra.controlcenter"] isEqual:@7] &&
+                  [MXVisibilityPlan systemItemRawValueForItemIdentifier:@"com.example.item"] == nil,
+                  @"Apple module identifiers map to raw values");
 
     // Regression: the custom -setRevealing: used to assign self.revealing and
     // recurse until the stack overflowed, crashing on every Reveal click.

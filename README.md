@@ -25,7 +25,7 @@ core behaviour in a small, auditable codebase:
 ## Features
 
 - Hide third-party menu bar items per application.
-- Apple's own items (Clock, Wi-Fi, Battery, Control Center, …) stay visible.
+- Hide Apple's own items too: Clock, Wi-Fi, Battery, Control Center, Spotlight, …
 - Temporary **Reveal** of all hidden items for 15 seconds.
 - Global shortcut `⌃⌥⌘M` toggles the reveal.
 - Settings window with live discovery of running apps and their items.
@@ -87,9 +87,9 @@ feature.
 5. **Show All** permanently restores everything.
 6. Quit Mixologist to release the restriction.
 
-Apple's system items (Clock, Wi-Fi, Battery, Control Center, Display, …) are kept
-visible by passing every `MBSystemItemIdentifier` raw value (`0...8`) to the
-private API. Applications without a bundle identifier — and status items that
+Apple's modules (Clock, Wi-Fi, Battery, Control Center, Display, …) are hidden
+individually by leaving their `MBSystemItemIdentifier` raw value (`0...8`) out of
+the private API's system-item list. Applications without a bundle identifier — and status items that
 macOS cannot attribute to an allow-listed bundle, including some apps launched
 directly by an agent — cannot be selectively allow-listed and will be hidden
 while a restriction is active. This is a limitation of the system allow-list API,
@@ -124,7 +124,8 @@ extension points are in [`docs/TECHNICAL.md`](docs/TECHNICAL.md).
 - **No ordering/profiles yet.** Bartender's position database and compatibility
   mode are documented for future work, but not implemented.
 - **Other menu bar managers.** Running Mixologist alongside Bartender, Ice, Thaw,
-  or similar can produce intersecting restrictions. Use one at a time.
+  or similar installs a second restriction. An item stays visible if either one
+  allows it, so they undo each other's hiding. Use one at a time.
 - **Signing.** An ad-hoc build may not be able to keep its own icon on screen while
   hiding is active; use the hotkey or reopen the app.
 

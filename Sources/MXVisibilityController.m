@@ -50,7 +50,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
         if (!self) {
             return;
         }
-        if (self.hidingActive || self.revealing || self.store.hiddenBundleIdentifiers.count > 0) {
+        if (self.hidingActive || self.revealing || self.hiddenCount > 0) {
             [self refreshScanWithCompletion:nil];
         }
     }];
@@ -186,6 +186,19 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
     return [self.store isBundleHidden:bundleIdentifier];
 }
 
+- (void)setSystemItem:(NSInteger)rawValue hidden:(BOOL)hidden {
+    [self.store setSystemItem:rawValue hidden:hidden];
+    [self applyVisibilityIfNeededForce:YES];
+}
+
+- (BOOL)isSystemItemHidden:(NSInteger)rawValue {
+    return [self.store isSystemItemHidden:rawValue];
+}
+
+- (NSUInteger)hiddenCount {
+    return self.store.hiddenBundleIdentifiers.count + self.store.hiddenSystemItems.count;
+}
+
 - (void)setRevealing:(BOOL)revealing {
     if (revealing == _revealing) {
         return;
@@ -228,6 +241,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 
 - (void)showAllAppsPermanently {
     self.store.hiddenBundleIdentifiers = [NSSet set];
+    self.store.hiddenSystemItems = [NSSet set];
     [self.revealTimer invalidate];
     self.revealTimer = nil;
     self.revealing = NO;
@@ -247,6 +261,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
                                              runningBundleIdentifiers:
                                   [NSSet setWithArray:self.lastScan.runningBundleIdentifiers]
                                                    hiddenBundleIdentifiers:hidden
+                                                         hiddenSystemItems:self.store.hiddenSystemItems
                                                   ownBundleIdentifier:NSBundle.mainBundle.bundleIdentifier];
 
     if (!plan.shouldRestrict || self.revealing) {
@@ -306,7 +321,7 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
 }
 
 - (NSString *)statusDescription {
-    NSUInteger hiddenCount = self.store.hiddenBundleIdentifiers.count;
+    NSUInteger hiddenCount = self.hiddenCount;
     NSUInteger appCount = self.lastScan.apps.count;
     NSUInteger itemCount = 0;
     for (MXAppMenuItems *app in self.lastScan.apps) {
@@ -322,11 +337,11 @@ NSNotificationName const MXScanDidChangeNotification = @"MXScanDidChangeNotifica
         return @"Nothing is hidden. Turn apps off in Menu Bar Items to hide them.";
     }
     if (self.hidingActive) {
-        return [NSString stringWithFormat:@"Hiding %lu app%@. %lu apps / %lu items discovered.",
+        return [NSString stringWithFormat:@"Hiding %lu item%@. %lu apps / %lu items discovered.",
                 (unsigned long)hiddenCount, hiddenCount == 1 ? @"" : @"s",
                 (unsigned long)appCount, (unsigned long)itemCount];
     }
-    return [NSString stringWithFormat:@"%lu app%@ marked hidden, but the restriction is not active.",
+    return [NSString stringWithFormat:@"%lu item%@ marked hidden, but the restriction is not active.",
             (unsigned long)hiddenCount, hiddenCount == 1 ? @"" : @"s"];
 }
 

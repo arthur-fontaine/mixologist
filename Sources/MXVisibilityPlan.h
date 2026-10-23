@@ -9,16 +9,21 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, readonly) BOOL shouldRestrict;
 @property (nonatomic, copy, readonly) NSArray<NSString *> *allowedBundleIdentifiers;
-/// `MBSystemItemIdentifier` raw values (NSNumber). Keeping all nine visible is
-/// what prevents the restriction from also hiding Apple's Clock, Wi-Fi and
-/// Control Center items.
+/// `MBSystemItemIdentifier` raw values (NSNumber) that stay visible: all nine
+/// minus the ones the user hid. Leaving one out hides that Apple module even
+/// though MenuBarAgent, which draws it, stays in the bundle allow list.
 @property (nonatomic, copy, readonly) NSArray<NSNumber *> *allowedSystemItemRawValues;
 @property (nonatomic, copy, readonly) NSString *signature;
 
 + (instancetype)planWithScannedBundleIdentifiers:(NSSet<NSString *> *)scannedBundleIdentifiers
                           runningBundleIdentifiers:(NSSet<NSString *> *)runningBundleIdentifiers
                                 hiddenBundleIdentifiers:(NSSet<NSString *> *)hiddenBundleIdentifiers
+                                      hiddenSystemItems:(NSSet<NSNumber *> *)hiddenSystemItems
                                        ownBundleIdentifier:(nullable NSString *)ownBundleIdentifier;
+
+/// Maps an Apple module's AX identifier (`com.apple.menuextra.clock`, …) to its
+/// `MBSystemItemIdentifier` raw value, or nil for items the API cannot address.
++ (nullable NSNumber *)systemItemRawValueForItemIdentifier:(NSString *)identifier;
 
 @end
 
