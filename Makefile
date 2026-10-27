@@ -36,7 +36,7 @@ CFLAGS := -fobjc-arc -fmodules -fblocks -Wall -Wextra -Wno-unused-parameter \
 SWIFTFLAGS := -target $(TARGET) -sdk $(SDKROOT) -module-name $(APP_NAME) -swift-version 5 \
               -O -wmo -parse-as-library -import-objc-header $(BRIDGING_HEADER) -I Sources
 
-.PHONY: all build sign run diagnose scan test clean install
+.PHONY: all build sign run diagnose scan test clean install release
 
 all: $(APP)
 
@@ -59,6 +59,7 @@ $(BINARY): $(OBJC_OBJECTS) $(SWIFT_OBJECT)
 $(APP): $(BINARY) Resources/Info.plist
 	@mkdir -p $(RESOURCES_DIR)
 	@cp Resources/Info.plist $(APP)/Contents/Info.plist
+	@plutil -replace CFBundleShortVersionString -string "$(VERSION)" $(APP)/Contents/Info.plist
 	@printf 'APPL????' > $(APP)/Contents/PkgInfo
 	@plutil -lint $(APP)/Contents/Info.plist >/dev/null
 	@$(MAKE) --no-print-directory sign
@@ -90,3 +91,16 @@ install: $(APP)
 	rm -rf "/Applications/$(APP_NAME).app"
 	cp -R "$(APP)" "/Applications/$(APP_NAME).app"
 	@echo "Installed /Applications/$(APP_NAME).app"
+
+DMG := $(BUILD_DIR)/$(APP_NAME).dmg
+
+# Publishes v$(VERSION) on GitHub. The DMG keeps the same name in every
+# release, so the Homebrew cask (Casks/mixologist.rb) always fetches the latest.
+# Bump VERSION first: an existing tag is refused.
+release:
+	@if gh release view "v$(VERSION)" >/dev/null 2>&1; then echo "v$(VERSION) is already released; bump VERSION" >&2; exit 1; fi
+	@$(MAKE) --no-print-directory clean all
+	@stage=$$(mktemp -d) && cp -R "$(APP)" "$$stage/" && ln -s /Applications "$$stage/Applications" && \
+	  hdiutil create -quiet -ov -fs HFS+ -format UDZO -volname "$(APP_NAME)" -srcfolder "$$stage" "$(DMG)"; \
+	  status=$$?; rm -rf "$$stage"; exit $$status
+	gh release create "v$(VERSION)" "$(DMG)" --target main --title "$(APP_NAME) $(VERSION)" --generate-notes

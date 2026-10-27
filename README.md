@@ -40,6 +40,16 @@ core behaviour in a small, auditable codebase:
 - Xcode (for `clang`, `swiftc` and the macOS 26+ SDK) to build. No Xcode project
   is required.
 
+## Install
+
+```sh
+brew tap arthur-fontaine/mixologist https://github.com/arthur-fontaine/mixologist
+brew install --cask arthur-fontaine/mixologist/mixologist
+```
+
+The cask always installs the latest release. Builds are signed but not
+notarized, so it removes the quarantine flag after installing.
+
 ## Build and run
 
 ```sh
@@ -54,6 +64,10 @@ To install:
 ```sh
 make install    # copies to /Applications/Mixologist.app
 ```
+
+To publish a release, bump `VERSION` in the `Makefile`, then run
+`make release`. It builds, packages `build/Mixologist.dmg`, and creates the
+`v<VERSION>` GitHub release the cask downloads from.
 
 ### Code signing
 
